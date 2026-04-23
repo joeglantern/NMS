@@ -290,4 +290,4 @@ To ensure accountability across all roles, the system will implement automated a
 ### Phase 7: Hardening & Deployment
 - Conduct security audits (rate-limiting, Socket.io hardening).
 - Perform end-to-end integration and load testing.
-- Deploy to production (Supabase/DigitalOcean/Vercel).
+- Deploy to production (The linux server we talked about).
