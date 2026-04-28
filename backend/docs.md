@@ -119,3 +119,87 @@ app.config.NODE_ENV
 // ❌ Avoid — untyped, unvalidated
 process.env.JWT_SECRET
 ```
+
+---
+
+### Chunk 1.3 — Folder Structure ✅
+
+**What was done:**
+- Created the full domain-driven directory structure under `/src`
+- Created `src/shared/errors/AppError.ts` — a reusable custom error class
+- Created `src/shared/types/index.ts` — shared types used across all modules
+
+**Full directory layout:**
+```
+src/
+├── config/
+│   └── env.ts              ← Environment validation
+├── modules/
+│   ├── auth/               ← Registration, login, OTP, RBAC
+│   ├── incidents/          ← Incident lifecycle
+│   ├── dispatch/           ← Assignment & nearest vehicle logic
+│   ├── handoff/            ← Partner forwarding
+│   ├── tracking/           ← GPS ingestion
+│   └── notifications/      ← Push/SMS alerts
+├── plugins/
+│   └── prisma.ts           ← Fastify Prisma plugin
+├── shared/
+│   ├── errors/
+│   │   └── AppError.ts     ← Custom error classes
+│   ├── schemas/            ← Zod validation schemas (populated per module)
+│   ├── types/
+│   │   └── index.ts        ← Shared TypeScript types
+│   └── utils/              ← Utility functions (populated per chunk)
+├── generated/
+│   └── prisma/             ← Auto-generated Prisma client (NOT committed)
+├── app.ts
+└── server.ts
+```
+
+**Error classes available (`src/shared/errors/AppError.ts`):**
+```typescript
+throw new NotFoundError('Incident')       // 404
+throw new UnauthorizedError()             // 401
+throw new ForbiddenError()                // 403
+throw new BadRequestError('Invalid data') // 400
+throw new ConflictError('Email taken')    // 409
+```
+
+**Shared types available (`src/shared/types/index.ts`):**
+- `Role` — union type matching all Prisma roles
+- `JwtPayload` — shape of decoded JWT (`userId`, `role`, `agencyId`)
+- `PaginationQuery` / `PaginatedResponse<T>` — standard list response shape
+- `ApiResponse<T>` — standard success response envelope
+- `Coordinates` — `{ lat, lng }` object
+
+---
+
+### Chunk 1.4 — Prisma Init ✅ (Pending DB connection test)
+
+**What was done:**
+- Installed `prisma` and `@prisma/client`
+- Ran `npx prisma init` — created `prisma/schema.prisma` and `prisma.config.ts`
+- Set `provider = "postgresql"` and `url = env("DATABASE_URL")` in schema
+- Created `src/plugins/prisma.ts` — Fastify plugin that:
+  - Instantiates a single shared `PrismaClient`
+  - Decorates the app as `app.prisma` (fully typed)
+  - Gracefully disconnects on server shutdown via `onClose` hook
+- Registered `prismaPlugin` in `app.ts` (after env validation)
+
+**⚠️ Action required before the DB step works:**
+Update `DATABASE_URL` in your `.env` file with your real Supabase connection string:
+```
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/postgres
+```
+Then run:
+```bash
+npx prisma generate    # generates the typed client from the schema
+npx prisma db push     # pushes the schema to Supabase (use in dev)
+```
+
+**How routes use the DB (once connected):**
+```typescript
+// In any route handler or service:
+const incident = await app.prisma.incident.findUnique({ where: { id } })
+const users    = await app.prisma.user.findMany()
+```

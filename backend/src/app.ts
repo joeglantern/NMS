@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import { registerEnv } from './config/env.js';
+import prismaPlugin from './plugins/prisma.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -22,6 +23,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── Environment validation — MUST be registered first ─────────────────────
   // This will throw and refuse to start if required vars are missing/invalid.
   await registerEnv(app);
+
+  // ── Database ───────────────────────────────────────────────────────────────
+  await app.register(prismaPlugin);
 
   // ── Security ──────────────────────────────────────────────────────────────
   await app.register(helmet, {

@@ -6,6 +6,9 @@ backend/node_modules/
 dist/
 backend/dist/
 
+# Generated code (Prisma client)
+backend/src/generated/
+
 # Environment
 .env
 backend/.env
