@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import { registerEnv } from './config/env.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -18,14 +19,18 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
+  // ── Environment validation — MUST be registered first ─────────────────────
+  // This will throw and refuse to start if required vars are missing/invalid.
+  await registerEnv(app);
+
   // ── Security ──────────────────────────────────────────────────────────────
   await app.register(helmet, {
     // Allow Swagger UI to function in development
-    contentSecurityPolicy: process.env.NODE_ENV === 'production',
+    contentSecurityPolicy: app.config.NODE_ENV === 'production',
   });
 
   await app.register(cors, {
-    origin: process.env.CORS_ORIGIN ?? '*',
+    origin: app.config.CORS_ORIGIN,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
