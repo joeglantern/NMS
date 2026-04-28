@@ -194,7 +194,7 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/p
 Then run:
 ```bash
 npx prisma generate    # generates the typed client from the schema
-npx prisma db push     # pushes the schema to Supabase (use in dev)
+npx prisma db push     # pushes the schema to Supabase (requires DATABASE_URL)
 ```
 
 **How routes use the DB (once connected):**
@@ -203,3 +203,39 @@ npx prisma db push     # pushes the schema to Supabase (use in dev)
 const incident = await app.prisma.incident.findUnique({ where: { id } })
 const users    = await app.prisma.user.findMany()
 ```
+
+---
+
+### Chunks 1.5, 1.6, 1.7 — Full Prisma Schema ✅
+
+**What was done:**
+- Defined the complete database schema in `prisma/schema.prisma`
+- Ran `npx prisma generate` — TypeScript client now lives in `src/generated/prisma/` (gitignored)
+- All models follow snake_case in the DB (`@@map`) with camelCase in TypeScript
+
+**Models defined:**
+
+| Model | Table | Purpose |
+|---|---|---|
+| `Agency` | `agencies` | Internal NMS and external Partner agencies |
+| `User` | `users` | All system users across all roles |
+| `Incident` | `incidents` | Emergency cases from initial log to resolution |
+| `Task` | `tasks` | Crew dispatch assignments linked to incidents |
+| `Vehicle` | `vehicles` | Ambulances with IMEI for GPS tracking |
+| `Facility` | `facilities` | Hospitals/clinics with KEPH level classification |
+| `ForwardingLog` | `forwarding_logs` | Audit trail for every case handoff to partner agencies |
+| `AuditLog` | `audit_logs` | System-wide action log for accountability |
+
+**Enums defined:**
+
+| Enum | Values |
+|---|---|
+| `Role` | `SUPER_ADMIN, ADMIN, WATCHER, DISPATCHER, DRIVER, EMT, NURSE, PARTNER` |
+| `AgencyType` | `INTERNAL, PARTNER` |
+| `IncidentStatus` | `DRAFT → SUBMITTED → DISPATCH_HANDLING → DISPATCH_ON_HOLD → DISPATCHED → RESOLVED` |
+| `TaskStatus` | `PENDING → ACCEPTED → EN_ROUTE → AT_SCENE → PATIENT_PICKED → AT_HOSPITAL → COMPLETED / CANCELLED` |
+
+**Note for frontend team:**
+These status flows are the exact values you will receive from the API. Build your UI state machines around these enums.
+
+**⚠️ Pending:** Run `npx prisma db push` once `DATABASE_URL` is set with the real Supabase connection string.

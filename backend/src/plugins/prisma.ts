@@ -9,7 +9,7 @@ import { PrismaClient } from '../generated/prisma/index.js';
  * Using fastify-plugin ensures the decorator is visible across the
  * entire app (not scoped to just the plugin's encapsulation context).
  *
- * Usage in routes/services:
+ * Usage in any route or service:
  *   const user = await app.prisma.user.findUnique({ where: { id } })
  */
 const prismaPlugin = fp(async (app: FastifyInstance) => {
@@ -21,7 +21,7 @@ const prismaPlugin = fp(async (app: FastifyInstance) => {
   });
 
   await prisma.$connect();
-  app.log.info('Prisma connected to the database');
+  app.log.info('✅ Prisma connected to the database');
 
   // Decorate the Fastify instance so all routes can access `app.prisma`
   app.decorate('prisma', prisma);

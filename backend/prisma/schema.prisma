@@ -8,5 +8,287 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  WATCHER
+  DISPATCHER
+  DRIVER
+  EMT
+  NURSE
+  PARTNER
+}
+
+enum AgencyType {
+  INTERNAL
+  PARTNER
+}
+
+enum IncidentStatus {
+  DRAFT             // Created by watcher, not yet submitted
+  SUBMITTED         // Submitted to dispatch queue
+  DISPATCH_HANDLING // Dispatcher has taken it up
+  DISPATCH_ON_HOLD  // Dispatcher paused it
+  DISPATCHED        // Crew assigned and en route
+  RESOLVED          // Case closed
+}
+
+enum TaskStatus {
+  PENDING
+  ACCEPTED
+  EN_ROUTE
+  AT_SCENE
+  PATIENT_PICKED
+  AT_HOSPITAL
+  COMPLETED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agency
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Agency {
+  id          String     @id @default(uuid())
+  name        String
+  type        AgencyType @default(INTERNAL)
+  location    String?
+  contactInfo Json?      @map("contact_info")
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  users          User[]
+  incidents      Incident[]      @relation("IncidentAgency")
+  vehicles       Vehicle[]
+  forwardingFrom ForwardingLog[] @relation("ForwardingFromAgency")
+  forwardingTo   ForwardingLog[] @relation("ForwardingToAgency")
+
+  @@map("agencies")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  phone        String?
+  role         Role
+  fcmToken     String?  @map("fcm_token")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  agencyId String @map("agency_id")
+  agency   Agency @relation(fields: [agencyId], references: [id])
+
+  watchedIncidents    Incident[] @relation("IncidentWatcher")
+  dispatchedIncidents Incident[] @relation("IncidentDispatcher")
+  driverTasks         Task[]     @relation("TaskDriver")
+  emtTasks            Task[]     @relation("TaskEmt")
+  nurseTasks          Task[]     @relation("TaskNurse")
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incident
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Incident {
+  id             String         @id @default(uuid())
+  caseNumber     String         @unique @map("case_number")
+  status         IncidentStatus @default(DRAFT)
+  chiefComplaint String         @map("chief_complaint") @db.Text
+  locationName   String         @map("location_name")
+  subCounty      String         @map("sub_county")
+  lat            Float?
+  lng            Float?
+  alertMode      String?        @map("alert_mode")
+  alertAt        DateTime?      @map("alert_at")
+  notifierDetails Json?         @map("notifier_details")
+
+  // Patient information
+  patientName    String? @map("patient_name")
+  patientAge     String? @map("patient_age")
+  patientGender  String? @map("patient_gender")
+  patientNhif    String? @map("patient_nhif")
+  patientContact String? @map("patient_contact")
+  nextOfKin      String? @map("next_of_kin")
+
+  // Mass casualty event
+  massCasualty      Boolean @default(false) @map("mass_casualty")
+  massCasualtyCount Int?    @map("mass_casualty_count")
+
+  // Notes and clinical info
+  watcherComments       String? @map("watcher_comments") @db.Text
+  dispatcherComments    String? @map("dispatcher_comments") @db.Text
+  dispatcherChallenges  String? @map("dispatcher_challenges") @db.Text
+  preHospitalManagement String? @map("pre_hospital_management") @db.Text
+  hospitalLevelRequired Int?    @map("hospital_level_required")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  watcherId String @map("watcher_id")
+  watcher   User   @relation("IncidentWatcher", fields: [watcherId], references: [id])
+
+  dispatcherId String? @map("dispatcher_id")
+  dispatcher   User?   @relation("IncidentDispatcher", fields: [dispatcherId], references: [id])
+
+  assignedAgencyId String @map("assigned_agency_id")
+  assignedAgency   Agency @relation("IncidentAgency", fields: [assignedAgencyId], references: [id])
+
+  targetFacilityId String?   @map("target_facility_id")
+  targetFacility   Facility? @relation(fields: [targetFacilityId], references: [id])
+
+  tasks          Task[]
+  forwardingLogs ForwardingLog[]
+
+  @@map("incidents")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Task {
+  id     String     @id @default(uuid())
+  status TaskStatus @default(PENDING)
+
+  // Lifecycle timestamps — used for TAT (Turnaround Time) calculations
+  receivedAt        DateTime  @default(now()) @map("received_at")
+  acceptedAt        DateTime? @map("accepted_at")
+  sceneArrivalAt    DateTime? @map("scene_arrival_at")
+  patientPickAt     DateTime? @map("patient_pick_at")
+  facilityArrivalAt DateTime? @map("facility_arrival_at")
+  completedAt       DateTime? @map("completed_at")
+  rejectedAt        DateTime? @map("rejected_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  cancelReason      String?   @map("cancel_reason")
+
+  // Route coordinates
+  startLat Float? @map("start_lat")
+  startLng Float? @map("start_lng")
+  endLat   Float? @map("end_lat")
+  endLng   Float? @map("end_lng")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id])
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  driverId String @map("driver_id")
+  driver   User   @relation("TaskDriver", fields: [driverId], references: [id])
+
+  emtId String @map("emt_id")
+  emt   User   @relation("TaskEmt", fields: [emtId], references: [id])
+
+  nurseId String @map("nurse_id")
+  nurse   User   @relation("TaskNurse", fields: [nurseId], references: [id])
+
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vehicle
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Vehicle {
+  id                 String    @id @default(uuid())
+  registrationNumber String    @unique @map("registration_number")
+  imei               String    @unique
+  isActive           Boolean   @default(true) @map("is_active")
+  lastLat            Float?    @map("last_lat")
+  lastLng            Float?    @map("last_lng")
+  lastLocationAt     DateTime? @map("last_location_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  agencyId String @map("agency_id")
+  agency   Agency @relation(fields: [agencyId], references: [id])
+
+  tasks Task[]
+
+  @@map("vehicles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Facility
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Facility {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // e.g., "Hospital", "Health Centre", "Clinic"
+  kephLevel Int      @map("keph_level") // 1–6, Kenya KEPH classification
+  subCounty String   @map("sub_county")
+  lat       Float
+  lng       Float
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  incidents Incident[]
+
+  @@map("facilities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ForwardingLog
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ForwardingLog {
+  id        String   @id @default(uuid())
+  reason    String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id])
+
+  fromAgencyId String @map("from_agency_id")
+  fromAgency   Agency @relation("ForwardingFromAgency", fields: [fromAgencyId], references: [id])
+
+  toAgencyId String @map("to_agency_id")
+  toAgency   Agency @relation("ForwardingToAgency", fields: [toAgencyId], references: [id])
+
+  @@map("forwarding_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AuditLog
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, FORWARD
+  subjectType String   @map("subject_type") // INCIDENT, TASK, USER, VEHICLE
+  subjectId   String   @map("subject_id")
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
 }
