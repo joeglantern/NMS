@@ -25,3 +25,6 @@ pino-pretty.log
 # IDE
 .vscode/
 .idea/
+
+# Testing
+backend/test-auth.html
