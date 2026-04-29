@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../lib/prisma.js';
 
 /**
  * Prisma Fastify Plugin.
@@ -13,12 +14,7 @@ import { PrismaClient } from '../generated/prisma/index.js';
  *   const user = await app.prisma.user.findUnique({ where: { id } })
  */
 const prismaPlugin = fp(async (app: FastifyInstance) => {
-  const prisma = new PrismaClient({
-    log:
-      process.env.NODE_ENV === 'development'
-        ? ['query', 'info', 'warn', 'error']
-        : ['warn', 'error'],
-  });
+  const prisma = createPrismaClient();
 
   await prisma.$connect();
   app.log.info('✅ Prisma connected to the database');
