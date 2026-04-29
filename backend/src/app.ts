@@ -4,8 +4,11 @@ import helmet from '@fastify/helmet';
 import { registerEnv } from './config/env.js';
 import prismaPlugin from './plugins/prisma.js';
 import jwtPlugin from './plugins/jwt.js';
+import redisPlugin from './plugins/redis.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { incidentRoutes } from './modules/incidents/incident.routes.js';
+import { fleetRoutes } from './modules/fleet/fleet.routes.js';
+import { taskRoutes } from './modules/tasks/task.routes.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -27,8 +30,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   // This will throw and refuse to start if required vars are missing/invalid.
   await registerEnv(app);
 
-  // ── Database ───────────────────────────────────────────────────────────────
+  // ── Database & Cache ───────────────────────────────────────────────────────
   await app.register(prismaPlugin);
+  await app.register(redisPlugin);
 
   // ── Security ──────────────────────────────────────────────────────────────
   await app.register(helmet, {
@@ -51,6 +55,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── Routes ────────────────────────────────────────────────────────────────
   app.register(authRoutes, { prefix: '/auth' });
   app.register(incidentRoutes, { prefix: '/incidents' });
+  app.register(fleetRoutes, { prefix: '/fleet' });
+  app.register(taskRoutes, { prefix: '/tasks' });
 
   return app;
 }

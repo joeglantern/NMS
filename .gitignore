@@ -27,4 +27,4 @@ pino-pretty.log
 .idea/
 
 # Testing
-backend/test-auth.html
+client-test/

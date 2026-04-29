@@ -41,6 +41,10 @@ const schema = {
       type: 'string',
       default: '7d',
     },
+    REDIS_URL: {
+      type: 'string',
+      default: 'redis://localhost:6379',
+    },
   },
 };
 
@@ -59,6 +63,7 @@ declare module 'fastify' {
       DATABASE_URL: string;
       JWT_SECRET: string;
       JWT_EXPIRES_IN: string;
+      REDIS_URL: string;
     };
   }
 }

@@ -292,3 +292,29 @@ app.get('/protected-route', {
   - `PATCH /incidents/:id/status` (Updates incident status, locked down to DISPATCHER, ADMIN, SUPER_ADMIN via `requireRole`).
 - Registered `incidentRoutes` in `app.ts` under `/incidents`.
 - Used TypeScript strict checking and exact Prisma types (`IncidentStatus`, `Role`) for complete type safety.
+
+---
+
+## Phase 4: Dispatch & Task Module
+
+### Chunk 4.1 & 4.2 & 4.3 — Redis Integration & Fleet Tracking ✅
+
+**What was done:**
+- Added `REDIS_URL` validation in `src/config/env.ts` and `.env`.
+- Installed `@fastify/redis` and `ioredis`.
+- Created `src/plugins/redis.ts` and hooked it into `app.ts`.
+- Created `src/shared/utils/haversine.ts` to calculate precise real-world distance between coordinates.
+- Created `src/modules/fleet/fleet.service.ts` to push/pull real-time vehicle locations using Redis (`SETEX` with a 5-minute TTL).
+- Exposed `POST /fleet/location` (for ambulances to stream location) and `GET /fleet/locations` (for the dispatcher map).
+- Created `src/modules/dispatch/dispatch.service.ts` with `findNearestVehicles` that filters active vehicles from Redis and sorts them by Haversine distance.
+
+### Chunk 4.4 & 4.5 — Tasks & Dispatch Endpoints ✅
+
+**What was done:**
+- Created `src/modules/tasks/task.service.ts`.
+- Implemented `POST /tasks` to dispatch an ambulance. This runs a Prisma `$transaction` to:
+  1. Create a `Task` assigned to the vehicle, driver, EMT, and nurse.
+  2. Update the parent `Incident` status to `DISPATCHED`.
+- Implemented `PATCH /tasks/:id/status` to handle task lifecycle changes (`ACCEPTED`, `EN_ROUTE`, `AT_SCENE`, etc.).
+- The system automatically timestamps `acceptedAt`, `sceneArrivalAt`, `facilityArrivalAt`, etc. based on the status update to power Turnaround Time (TAT) analytics.
+- Integrated `taskRoutes` into `app.ts` under `/tasks`.
