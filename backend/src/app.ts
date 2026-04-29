@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import { registerEnv } from './config/env.js';
 import prismaPlugin from './plugins/prisma.js';
+import jwtPlugin from './plugins/jwt.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -33,6 +35,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: app.config.NODE_ENV === 'production',
   });
 
+  await app.register(jwtPlugin);
+
   await app.register(cors, {
     origin: app.config.CORS_ORIGIN,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
@@ -42,6 +46,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get('/', async (_request, reply) => {
     return reply.send({ ok: true, service: 'NMS-EOC API', version: '1.0.0' });
   });
+
+  // ── Routes ────────────────────────────────────────────────────────────────
+  app.register(authRoutes, { prefix: '/auth' });
 
   return app;
 }

@@ -239,3 +239,40 @@ const users    = await app.prisma.user.findMany()
 These status flows are the exact values you will receive from the API. Build your UI state machines around these enums.
 
 **⚠️ Pending:** Run `npx prisma db push` once `DATABASE_URL` is set with the real Supabase connection string.
+
+---
+
+## Phase 2: Authentication
+
+### Chunk 2.1 — Password Hashing Utility ✅
+
+**What was done:**
+- Installed `bcrypt` for secure password hashing.
+- Created `src/shared/utils/hash.ts` with `hashPassword` and `comparePassword` functions.
+
+### Chunk 2.2 — JWT Plugin ✅
+
+**What was done:**
+- Installed `@fastify/jwt`.
+- Created `src/plugins/jwt.ts` to register the JWT plugin and expose `app.authenticate` as a route guard.
+- Registered the JWT plugin in `src/app.ts`.
+
+### Chunk 2.3 & 2.4 — Auth Module (Register & Login) ✅
+
+**What was done:**
+- Created `src/modules/auth/auth.service.ts` to encapsulate business logic for `register` and `login`.
+- Created `src/modules/auth/auth.routes.ts` defining endpoints `POST /auth/register` and `POST /auth/login`.
+- Hooked `authRoutes` into the main fastify app (`src/app.ts`) under the `/auth` prefix.
+
+### Chunk 2.5 — Auth Middleware (RBAC Guard) ✅
+
+**What was done:**
+- Created `src/shared/guards/requireRole.ts` to implement Role-Based Access Control.
+- Example usage for protecting endpoints:
+```typescript
+app.get('/protected-route', {
+  preValidation: [app.authenticate, requireRole(['SUPER_ADMIN'])]
+}, async (request, reply) => {
+  // accessible only to super admin
+});
+```
