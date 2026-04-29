@@ -276,3 +276,19 @@ app.get('/protected-route', {
   // accessible only to super admin
 });
 ```
+
+---
+
+## Phase 3: Incident Module
+
+### Chunk 3.1 & 3.2 & 3.3 — Incident Creation, Listing & Updates ✅
+
+**What was done:**
+- Created `src/modules/incidents/incident.service.ts` to handle business logic.
+- Created `src/modules/incidents/incident.routes.ts` defining:
+  - `POST /incidents` (Creates a new incident, auto-generates Case Number, defaults to SUBMITTED).
+  - `GET /incidents` (Paginated list, filterable by `status`).
+  - `GET /incidents/:id` (Fetches full details including dispatcher/watcher relations).
+  - `PATCH /incidents/:id/status` (Updates incident status, locked down to DISPATCHER, ADMIN, SUPER_ADMIN via `requireRole`).
+- Registered `incidentRoutes` in `app.ts` under `/incidents`.
+- Used TypeScript strict checking and exact Prisma types (`IncidentStatus`, `Role`) for complete type safety.

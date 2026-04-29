@@ -3,17 +3,9 @@
  * Import from here to avoid circular dependencies between modules.
  */
 
-// ── Roles ─────────────────────────────────────────────────────────────────────
-// Must match the Role enum in prisma/schema.prisma
-export type Role =
-  | 'SUPER_ADMIN'
-  | 'ADMIN'
-  | 'WATCHER'
-  | 'DISPATCHER'
-  | 'DRIVER'
-  | 'EMT'
-  | 'NURSE'
-  | 'PARTNER';
+// ── Prisma Enums ──────────────────────────────────────────────────────────────
+import { Role, IncidentStatus, TaskStatus, AgencyType } from '../../generated/prisma/index.js';
+export { Role, IncidentStatus, TaskStatus, AgencyType };
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
 // Shape of the payload encoded inside every JWT token

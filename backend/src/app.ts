@@ -5,6 +5,7 @@ import { registerEnv } from './config/env.js';
 import prismaPlugin from './plugins/prisma.js';
 import jwtPlugin from './plugins/jwt.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { incidentRoutes } from './modules/incidents/incident.routes.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -49,6 +50,8 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   app.register(authRoutes, { prefix: '/auth' });
+  app.register(incidentRoutes, { prefix: '/incidents' });
 
   return app;
 }
+
