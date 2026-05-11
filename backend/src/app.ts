@@ -100,6 +100,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.addHook('onReady', async () => trackingService.start());
   app.addHook('onClose', async () => trackingService.stop());
 
+  app.get('/health/tracking', async (_request, reply) => {
+    const status = trackingService.healthStatus();
+    return reply.send({ ok: status.isRunning, ...status });
+  });
+
   return app;
 }
 

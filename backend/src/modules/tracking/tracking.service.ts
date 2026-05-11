@@ -32,7 +32,7 @@ interface VehicleLocation {
   isActive: boolean;
 }
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 60_000;
 // Refresh the auth code 5 min before we assume it expires (default: 23h)
 const TOKEN_TTL_MS = 23 * 60 * 60 * 1000;
 
@@ -131,13 +131,13 @@ export class TrackingService {
 
     const rawVehicles = this.extractVehicleArray(body);
     if (!rawVehicles.length) {
-      this.app.log.warn('Uffizio: no vehicle entries in live data response');
+      this.app.log.debug('Uffizio: no new vehicle data this poll cycle');
       return;
     }
 
     const locations = await this.mapToInternalFormat(rawVehicles);
     if (!locations.length) {
-      this.app.log.warn('Uffizio: no vehicles matched by IMEI in our database');
+      this.app.log.warn('Uffizio: vehicles returned but none matched DB by IMEI — check seed');
       return;
     }
 
@@ -148,10 +148,16 @@ export class TrackingService {
       .to(`role:${Role.WATCHER}`)
       .emit('fleet:pos', locations);
 
+    this._lastSuccessAt = new Date().toISOString();
+    this._lastSuccessCount = locations.length;
     this.app.log.info(`Uffizio: updated ${locations.length} vehicle locations`);
   }
 
   private _loggedStructure = false;
+  private _lastSuccessAt: string | null = null;
+  private _lastSuccessCount = 0;
+  private _lastErrorAt: string | null = null;
+  private _lastError: string | null = null;
 
   // ── Response parsing ──────────────────────────────────────────────────────
 
@@ -259,14 +265,16 @@ export class TrackingService {
 
     this.app.log.info(`Uffizio: starting GPS polling (${POLL_INTERVAL_MS / 1000}s interval)`);
 
-    this.fetchAndUpdateLocations().catch(err =>
-      this.app.log.error({ err }, 'Uffizio: initial fetch failed')
-    );
+    const onError = (err: unknown) => {
+      this._lastErrorAt = new Date().toISOString();
+      this._lastError = err instanceof Error ? err.message : String(err);
+      this.app.log.error({ err }, 'Uffizio: poll failed');
+    };
+
+    this.fetchAndUpdateLocations().catch(onError);
 
     this.pollingInterval = setInterval(() => {
-      this.fetchAndUpdateLocations().catch(err =>
-        this.app.log.error({ err }, 'Uffizio: poll failed')
-      );
+      this.fetchAndUpdateLocations().catch(onError);
     }, POLL_INTERVAL_MS);
   }
 
@@ -275,5 +283,16 @@ export class TrackingService {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
+  }
+
+  healthStatus() {
+    return {
+      isRunning: !!this.pollingInterval,
+      lastSuccessAt: this._lastSuccessAt,
+      lastSuccessCount: this._lastSuccessCount,
+      lastErrorAt: this._lastErrorAt,
+      lastError: this._lastError,
+      pollIntervalSeconds: POLL_INTERVAL_MS / 1000,
+    };
   }
 }
