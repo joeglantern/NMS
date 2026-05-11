@@ -102,19 +102,34 @@ async function main() {
     console.log(`✅ Facility: ${facility.name} (KEPH ${facility.kephLevel})`);
   }
 
-  // ── 4. Dummy Fleet & Crew (for local testing) ───────────────────────────────
-  const vehicle = await prisma.vehicle.upsert({
-    where: { id: 'vehicle-001' },
+  // ── 4. Fleet — real vehicles from Uffizio/Kimii Telematics ─────────────────
+  // IMEIs confirmed from live Uffizio API response (getTokenBaseLiveData).
+  // The TrackingService matches by imei to write lastLat/lastLng every 30s.
+  const uffizioVehicles = [
+    { registrationNumber: 'GKB 847V', imei: '8642870320357'   },
+    { registrationNumber: 'GKB 645W', imei: '350317178839878' },
+    { registrationNumber: 'GKB 848V', imei: '862273048245427' },
+    { registrationNumber: 'GKB 849V', imei: '869270049176117' },
+    { registrationNumber: 'GKB 657W', imei: '350317178979112' },
+    { registrationNumber: '47CG036A', imei: '869467049288328' },
+  ];
+
+  for (const v of uffizioVehicles) {
+    const created = await prisma.vehicle.upsert({
+      where: { registrationNumber: v.registrationNumber },
+      update: { imei: v.imei, isActive: true },
+      create: { registrationNumber: v.registrationNumber, imei: v.imei, agencyId: nmsAgency.id, isActive: true },
+    });
+    console.log(`✅ Vehicle: ${created.registrationNumber} (IMEI ${created.imei})`);
+  }
+
+  // Keep the legacy placeholder so existing task/dispatch test data doesn't break
+  await prisma.vehicle.upsert({
+    where: { registrationNumber: 'KCX 123A' },
     update: {},
-    create: {
-      id: 'vehicle-001',
-      registrationNumber: 'KCX 123A',
-      imei: 'NMS-AMB-001',
-      agencyId: nmsAgency.id,
-      isActive: true,
-    },
+    create: { registrationNumber: 'KCX 123A', imei: 'NMS-AMB-001', agencyId: nmsAgency.id, isActive: false },
   });
-  console.log(`✅ Vehicle: ${vehicle.registrationNumber}`);
+  console.log('✅ Placeholder vehicle kept (inactive)');
 
   const driver = await prisma.user.upsert({
     where: { id: 'driver-001' },

@@ -328,7 +328,13 @@ export default function IncidentDetailPage() {
                         <p className="text-xs text-slate-text uppercase tracking-wider">{v.id.substring(0,8)}</p>
                       </td>
                       <td className="px-6 py-3">
-                        <span className="px-2 py-1 bg-brand-green/15 text-brand-green rounded text-[10px] font-bold tracking-widest uppercase">READY</span>
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase ${
+                          !v.isActive
+                            ? 'bg-slate-100 text-slate-400'
+                            : 'bg-brand-green/15 text-brand-green'
+                        }`}>
+                          {v.isActive ? 'AVAILABLE' : 'INACTIVE'}
+                        </span>
                       </td>
                       <td className="px-6 py-3 text-right">
                         <CaretRight size={20} className="text-slate-text" />

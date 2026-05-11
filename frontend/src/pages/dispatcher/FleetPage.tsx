@@ -36,9 +36,10 @@ export default function FleetPage() {
   ) || [];
 
   const totalCount = vehicles?.length || 0;
-  const activeCount = vehicles?.filter(v => v.status === 'READY' || v.status === 'BUSY').length || 0;
-  const idleCount = vehicles?.filter(v => v.status === 'READY').length || 0;
-  const offlineCount = vehicles?.filter(v => v.status === 'MAINTENANCE').length || 0;
+  // Derive counts from live GPS data (status field not in DB schema)
+  const activeCount = liveVehicles.filter(v => v.ignition && v.speed > 2).length;
+  const idleCount = liveVehicles.filter(v => v.ignition && v.speed <= 2).length;
+  const offlineCount = liveVehicles.filter(v => !v.ignition).length || (vehicles?.filter(v => !v.isActive).length ?? 0);
 
 
   const exportFleetToCSV = () => {
