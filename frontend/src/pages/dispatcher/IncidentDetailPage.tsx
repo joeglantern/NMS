@@ -78,7 +78,8 @@ export default function IncidentDetailPage() {
         vehicleId: selectedVehicleId,
         driverId: selectedDriverId,
         emtId: selectedEmtId,
-        nurseId: selectedEmtId,
+        nurseId: '',   // No separate nurse selector — send empty; backend handles optional
+        dispatcherComments,
       });
     },
     onSuccess: () => {
@@ -325,7 +326,7 @@ export default function IncidentDetailPage() {
                     <tr key={v.id} className="border-b border-surface-border hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => setSelectedVehicleId(v.id)}>
                       <td className="px-6 py-3">
                         <p className="font-bold text-brand-teal text-sm">{v.registrationNumber}</p>
-                        <p className="text-xs text-slate-text uppercase tracking-wider">{v.id.substring(0,8)}</p>
+                        <p className="text-xs text-slate-text uppercase tracking-wider">{v.id?.substring(0,8) ?? '—'}</p>
                       </td>
                       <td className="px-6 py-3">
                         <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase ${
