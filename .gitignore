@@ -11,6 +11,8 @@ backend/src/generated/
 
 # Environment
 .env
+.env.local
+.env.*.local
 backend/.env
 
 # Chunk Guide (per user request)
