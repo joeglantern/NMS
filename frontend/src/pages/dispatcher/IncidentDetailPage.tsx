@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle } from '@phosphor-icons/react';
 import api from '../../api/client';
 import { Incident, Vehicle, User } from '../../types/api';
 import Map from '../../components/shared/Map';
@@ -21,6 +21,8 @@ export default function IncidentDetailPage() {
   const [isEditingBrief, setIsEditingBrief] = useState(false);
   const [editedComplaint, setEditedComplaint] = useState('');
   const [editedLocation, setEditedLocation] = useState('');
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [resolveReason, setResolveReason] = useState('');
 
   // Fetch Incident
   const { data: incident, isLoading } = useQuery({
@@ -107,6 +109,21 @@ export default function IncidentDetailPage() {
     },
   });
 
+  const resolveMutation = useMutation({
+    mutationFn: () =>
+      api.patch(`/incidents/${id}/status`, { status: 'RESOLVED', comments: resolveReason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      setShowResolveModal(false);
+      setResolveReason('');
+      addNotification({ type: 'success', title: 'Case Resolved', message: `Case ${incident?.caseNumber} has been marked as resolved.` });
+    },
+    onError: (err: any) => {
+      addNotification({ type: 'error', title: 'Failed to Resolve', message: err?.response?.data?.message || 'Could not resolve the incident.' });
+    },
+  });
+
   if (isLoading) return <div className="p-10 font-bold text-center text-slate-text">Loading Incident Details...</div>;
   if (!incident) return <div className="p-10 font-bold text-center text-status-danger">Incident Not Found</div>;
 
@@ -157,6 +174,14 @@ export default function IncidentDetailPage() {
           >
             <ArrowCircleUp size={16} weight="bold" />
             Escalate
+          </button>
+          <button
+            onClick={() => setShowResolveModal(true)}
+            disabled={incident.status === 'RESOLVED'}
+            className="px-4 py-2 border border-brand-green/40 text-brand-green text-sm font-medium rounded-lg hover:bg-brand-green hover:text-white transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <CheckCircle size={16} weight="bold" />
+            {incident.status === 'RESOLVED' ? 'Resolved' : 'Resolve'}
           </button>
         </div>
       </div>
@@ -438,6 +463,44 @@ export default function IncidentDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Resolve Modal */}
+      {showResolveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl border border-surface-border w-full max-w-md mx-4 p-6 flex flex-col gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-brand-teal">Resolve Incident</h3>
+              <p className="text-sm text-slate-text mt-1">
+                Provide a reason for closing case <span className="font-semibold text-brand-teal">{incident.caseNumber}</span>. This will be recorded against the incident.
+              </p>
+            </div>
+            <textarea
+              autoFocus
+              className="w-full border border-surface-border rounded-lg p-3 text-sm h-28 resize-none outline-none focus:ring-2 focus:ring-brand-green transition-all"
+              placeholder="e.g. Patient transferred to Kenyatta Hospital, crew released and unit returned to base..."
+              value={resolveReason}
+              onChange={(e) => setResolveReason(e.target.value)}
+            />
+            <p className="text-xs text-slate-400 -mt-2">Minimum 5 characters required.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowResolveModal(false); setResolveReason(''); }}
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => resolveMutation.mutate()}
+                disabled={resolveReason.trim().length < 5 || resolveMutation.isPending}
+                className="px-5 py-2 bg-brand-green text-white text-sm font-semibold rounded-lg hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle size={16} weight="bold" />
+                {resolveMutation.isPending ? 'Resolving...' : 'Mark as Resolved'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
