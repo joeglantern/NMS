@@ -33,10 +33,15 @@ const updateIncidentSchema = z.object({
   dispatcherComments: z.string().optional(),
 });
 
-const updateStatusSchema = z.object({
-  status: z.nativeEnum(IncidentStatus),
-  comments: z.string().optional(),
-});
+const updateStatusSchema = z
+  .object({
+    status: z.nativeEnum(IncidentStatus),
+    comments: z.string().optional(),
+  })
+  .refine(
+    (d) => d.status !== IncidentStatus.RESOLVED || (d.comments && d.comments.trim().length >= 5),
+    { message: 'A resolution reason (minimum 5 characters) is required when resolving an incident', path: ['comments'] }
+  );
 
 export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   const incidentService = new IncidentService(app);
