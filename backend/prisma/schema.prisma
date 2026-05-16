@@ -163,6 +163,7 @@ model Incident {
 
   tasks          Task[]
   forwardingLogs ForwardingLog[]
+  callLogs       CallLog[]
 
   @@map("incidents")
 }
@@ -258,6 +259,47 @@ model Facility {
   incidents Incident[]
 
   @@map("facilities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CallLog — Yeastar PBX call records
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+  INTERNAL
+}
+
+enum CallStatus {
+  RINGING
+  ANSWERED
+  NO_ANSWER
+  BUSY
+  FAILED
+}
+
+model CallLog {
+  id           String        @id @default(uuid())
+  callId       String        @unique @map("call_id")
+  direction    CallDirection @default(INBOUND)
+  callFrom     String        @map("call_from")
+  callTo       String        @map("call_to")
+  startedAt    DateTime      @map("started_at")
+  endedAt      DateTime?     @map("ended_at")
+  duration     Int           @default(0)
+  talkDuration Int           @default(0) @map("talk_duration")
+  status       CallStatus    @default(RINGING)
+  recording    String?
+  trunkName    String?       @map("trunk_name")
+  didNumber    String?       @map("did_number")
+  notes        String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  incidentId String?   @map("incident_id")
+  incident   Incident? @relation(fields: [incidentId], references: [id])
+
+  @@map("call_logs")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

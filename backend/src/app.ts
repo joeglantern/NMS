@@ -10,12 +10,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { incidentRoutes } from './modules/incidents/incident.routes.js';
 import { fleetRoutes } from './modules/fleet/fleet.routes.js';
 import { taskRoutes } from './modules/tasks/task.routes.js';
-import { dispatchRoutes } from './modules/dispatch/dispatch.routes.js';
-import { adminRoutes } from './modules/admin/admin.routes.js';
-import { partnerRoutes } from './modules/partner/partner.routes.js';
-import { TrackingService } from './modules/tracking/tracking.service.js';
-import { AppError } from './shared/errors/AppError.js';
-import { Prisma } from './generated/prisma/index.js';
+import { pbxRoutes } from './modules/pbx/pbx.routes.js';
 
 /**
  * Builds and returns the configured Fastify application instance.
@@ -55,76 +50,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
-  // ── Global error handler ──────────────────────────────────────────────────
-  app.setErrorHandler((error: unknown, _request, reply) => {
-    if (error instanceof AppError) {
-      return reply.status(error.statusCode).send({
-        ok: false,
-        message: error.message,
-      });
-    }
-
-    // Fastify validation errors (schema mismatch, bad body)
-    if (error instanceof Error && 'statusCode' in error && (error as any).statusCode === 400) {
-      return reply.status(400).send({
-        ok: false,
-        message: error.message,
-      });
-    }
-
-    // Prisma known errors — map to readable responses
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        // Unique constraint violation
-        const field = (error.meta?.target as string[] | undefined)?.[0] ?? 'field';
-        return reply.status(409).send({ ok: false, message: `A record with this ${field} already exists.` });
-      }
-      if (error.code === 'P2003') {
-        // Foreign key constraint — referenced record doesn't exist
-        const field = (error.meta?.field_name as string | undefined) ?? 'reference';
-        return reply.status(400).send({ ok: false, message: `Invalid ${field}: referenced record not found.` });
-      }
-      if (error.code === 'P2025') {
-        // Record not found (e.g. update/delete on non-existent row)
-        return reply.status(404).send({ ok: false, message: 'Record not found.' });
-      }
-    }
-
-    app.log.error(error);
-    return reply.status(500).send({
-      ok: false,
-      message: 'Internal server error',
-    });
-  });
-
   // ── Health check ──────────────────────────────────────────────────────────
   app.get('/', async (_request, reply) => {
     return reply.send({ ok: true, service: 'NMS-EOC API', version: '1.0.0' });
   });
 
-  app.get('/health', async (_request, reply) => {
-    return reply.send({ ok: true, status: 'healthy' });
-  });
-
   // ── Routes ────────────────────────────────────────────────────────────────
   app.register(authRoutes, { prefix: '/auth' });
   app.register(incidentRoutes, { prefix: '/incidents' });
-  app.register(dispatchRoutes, { prefix: '/dispatch' });
   app.register(fleetRoutes, { prefix: '/fleet' });
   app.register(taskRoutes, { prefix: '/tasks' });
-  app.register(adminRoutes, { prefix: '/admin' });
-  app.register(partnerRoutes, { prefix: '/partner' });
-
-  // ── GPS Tracking Worker ───────────────────────────────────────────────────
-  const trackingService = new TrackingService(app);
-  app.addHook('onReady', async () => trackingService.start());
-  app.addHook('onClose', async () => trackingService.stop());
-
-  app.get('/health/tracking', async (_request, reply) => {
-    const status = trackingService.healthStatus();
-    return reply.send({ ok: status.isRunning, ...status });
-  });
+  app.register(pbxRoutes, { prefix: '/pbx' });
 
   return app;
 }
-

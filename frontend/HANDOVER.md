@@ -6,7 +6,7 @@ This document is the single source of truth for the frontend engineer building t
 
 ## 1. Project Context
 
-NMS (Nairobi Metropolitan Services) is rebuilding its Emergency Operations Centre (EOC) platform. The backend API is complete and running. Your job is to build the web application that consumes it.
+The backend API is complete and running. Your job is to build the web application that consumes it.
 
 The app is **role-intelligent** — one codebase, one build, one URL. After login the app reads the user's role from the JWT token and renders an entirely different navigation, layout, and feature set. There is no separate "admin app" or "partner app" — routing guards handle everything.
 
@@ -18,8 +18,10 @@ The app is **role-intelligent** — one codebase, one build, one URL. After logi
 | `ADMIN` | Agency management, user/vehicle/facility CRUD |
 | `WATCHER` | Creates incident reports from incoming calls |
 | `DISPATCHER` | Manages the incident queue, assigns crews |
+| `DRIVER` | Crew mobile view — accepts tasks, updates status |
+| `EMT` | Crew mobile view — logs patient data |
+| `NURSE` | Crew mobile view — logs patient data |
 | `PARTNER` | External agency — views forwarded incidents only |
-
 
 ---
 
@@ -305,9 +307,11 @@ src/
 │   │   ├── FleetManagementPage.tsx
 │   │   ├── VehicleDetailPage.tsx
 │   │   └── FacilityManagementPage.tsx
-│   └── partner/
-│       ├── PartnerDashboardPage.tsx
-│       └── PartnerIncidentDetailPage.tsx
+│   ├── partner/
+│   │   ├── PartnerDashboardPage.tsx
+│   │   └── PartnerIncidentDetailPage.tsx
+│   └── crew/
+│       └── ActiveTaskPage.tsx
 ├── stores/
 │   └── authStore.ts       # Zustand: JWT token, user object
 ├── lib/
@@ -425,6 +429,7 @@ Call `socket.connect()` after login. Call `socket.disconnect()` on logout.
 | Event | Payload | Who receives it | Action |
 |-------|---------|----------------|--------|
 | `incident:new` | Full incident object | All users with role `DISPATCHER` | Add to queue, show toast |
+| `task:created` | Full task object | The assigned driver, EMT, nurse | Show alert, navigate to active task |
 | `task:status` | `{ taskId, status, updatedAt }` | Everyone on `incident:{id}` room | Update task card live |
 | `vehicle:location` | `{ imei, lat, lng, speed, updatedAt }` | All dispatchers | Update map marker |
 
@@ -448,6 +453,7 @@ The backend joins users to rooms automatically on socket connection based on the
 | `SUPER_ADMIN`, `ADMIN` | `/admin/users` |
 | `DISPATCHER` | `/dispatcher/dashboard` |
 | `WATCHER` | `/watcher/new-incident` |
+| `DRIVER`, `EMT`, `NURSE` | `/crew/active-task` |
 | `PARTNER` | `/partner/dashboard` |
 
 ### 8.2 Route Guard Component
@@ -476,6 +482,9 @@ function RoleGuard({ allowed, children }: { allowed: string[]; children: React.R
 
 **WATCHER**
 - New Incident *(the 5-step form is the primary and only view)*
+
+**DRIVER / EMT / NURSE**
+- Active Task *(single-page crew view)*
 
 **PARTNER**
 - Incidents *(forwarded to them)*
@@ -814,6 +823,33 @@ PATCH /partner/incidents/:id/status  → update status (body: status, comments?)
 
 ---
 
+### 9.16 Crew Active Task — (no dedicated design file — build from spec)
+
+**Roles:** `DRIVER`, `EMT`, `NURSE`
+
+**What it does:** Single-screen view of the crew's current active task. Shows incident details and a status progression stepper.
+
+**API:**
+```
+GET  /tasks/active                    → current active task
+PATCH /tasks/:id/status               → advance task status
+POST /tasks/:id/patient-data          → log pre-hospital management notes
+```
+
+**Task Status Progression:**
+```
+PENDING → ACCEPTED → EN_ROUTE → AT_SCENE → PATIENT_PICKED → AT_HOSPITAL → COMPLETED
+```
+
+Each step is a button the crew taps to advance. Once a step is tapped, it's timestamped on the server. The UI shows elapsed time between steps.
+
+**Notes:**
+- This is the primary mobile-facing screen — design it responsive (375px min width)
+- If no active task, show a holding screen: "No active task assigned"
+- `POST /tasks/:id/patient-data` is available in `AT_SCENE` or later status
+
+---
+
 ## 10. API Response Shape
 
 All responses follow this envelope:
@@ -845,7 +881,7 @@ HTTP status codes:
 Define these in `src/types/api.ts`. They mirror the Prisma schema exactly.
 
 ```ts
-export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'WATCHER' | 'DISPATCHER' | 'PARTNER';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'WATCHER' | 'DISPATCHER' | 'DRIVER' | 'EMT' | 'NURSE' | 'PARTNER';
 export type AgencyType = 'INTERNAL' | 'PARTNER';
 
 export type IncidentStatus =
@@ -976,7 +1012,9 @@ POST   /dispatch/handoff/:id                 Body: { toAgencyId, reason }
 GET    /dispatch/nearest-vehicles?lat=&lng=&limit=
 
 POST   /tasks                                Body: { incidentId, vehicleId, driverId, emtId, nurseId }
-PATCH  /tasks/:id/status                     Body: { status, reason? }   (dispatcher use only in web app)
+GET    /tasks/active
+PATCH  /tasks/:id/status                     Body: { status, reason? }
+POST   /tasks/:id/patient-data               Body: { preHospitalManagement, dispatcherChallenges? }
 
 GET    /fleet/vehicles?agencyId=&page=&limit=
 POST   /fleet/vehicles                       Body: { registrationNumber, imei, agencyId }
@@ -1034,6 +1072,7 @@ Test credentials after seeding:
 - `admin@nms.go.ke` / `password123` (ADMIN)
 - `dispatcher@nms.go.ke` / `password123` (DISPATCHER)
 - `watcher@nms.go.ke` / `password123` (WATCHER)
+- `driver@nms.go.ke` / `password123` (DRIVER)
 - `partner@nairobiambulance.co.ke` / `password123` (PARTNER)
 
 ---
@@ -1054,3 +1093,4 @@ A screen is considered complete when:
 3. Real-time updates work on screens that require them (dashboard, queue, map, incident detail)
 4. Role guards block unauthorized access
 5. TypeScript compiles with no errors (`tsc --noEmit`)
+6. Mobile-responsive on screens flagged as such (crew active task page)

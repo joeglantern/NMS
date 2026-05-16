@@ -65,6 +65,22 @@ const schema = {
       type: 'string',
       default: 'Nairobi Emergency Operation Center',
     },
+    YEASTAR_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    YEASTAR_USERNAME: {
+      type: 'string',
+      default: '',
+    },
+    YEASTAR_PASSWORD: {
+      type: 'string',
+      default: '',
+    },
+    YEASTAR_WEBHOOK_SECRET: {
+      type: 'string',
+      default: '',
+    },
   },
 };
 
@@ -89,6 +105,10 @@ declare module 'fastify' {
       UFFIZIO_PASSWORD: string;
       UFFIZIO_PROJECT_ID: string;
       UFFIZIO_COMPANY: string;
+      YEASTAR_BASE_URL: string;
+      YEASTAR_USERNAME: string;
+      YEASTAR_PASSWORD: string;
+      YEASTAR_WEBHOOK_SECRET: string;
     };
   }
 }
