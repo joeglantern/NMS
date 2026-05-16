@@ -1,14 +1,16 @@
 import { useAuthStore } from '../../stores/authStore';
-import { 
-  SquaresFour, 
-  WarningCircle, 
-  MapTrifold, 
-  ListBullets, 
-  Users, 
+import {
+  SquaresFour,
+  WarningCircle,
+  MapTrifold,
+  ListBullets,
+  Users,
   Gear,
   ChartLineUp,
+  Phone,
   X
 } from '@phosphor-icons/react';
+import { useActiveCalls } from '../../hooks/useActiveCalls';
 import { Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -19,11 +21,13 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
+  const activeCalls = useActiveCalls();
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: SquaresFour, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
     { label: 'Incident Feed', path: '/queue', icon: ListBullets, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
     { label: 'Fleet Management', path: '/fleet', icon: MapTrifold, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
+    { label: 'Call Logs', path: '/call-logs', icon: Phone, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
     { label: 'Personnel', path: '/admin/users', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { label: 'Analytics', path: '/admin/analytics', icon: ChartLineUp, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { label: 'System Settings', path: '/admin/settings', icon: Gear, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -88,7 +92,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 }`}
               >
                 <item.icon size={22} weight={isActive ? 'fill' : 'regular'} />
-                <span className="text-sm tracking-wide">{item.label}</span>
+                <span className="text-sm tracking-wide flex-1">{item.label}</span>
+                {item.path === '/call-logs' && activeCalls.length > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    {activeCalls.length}
+                  </span>
+                )}
               </Link>
             );
           })}

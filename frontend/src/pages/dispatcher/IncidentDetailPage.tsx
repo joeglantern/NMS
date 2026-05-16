@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone } from '@phosphor-icons/react';
 import api from '../../api/client';
 import { Incident, Vehicle, User } from '../../types/api';
 import Map from '../../components/shared/Map';
@@ -23,6 +23,8 @@ export default function IncidentDetailPage() {
   const [editedLocation, setEditedLocation] = useState('');
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [resolveReason, setResolveReason] = useState('');
+  const [dialModal, setDialModal] = useState<{ number: string } | null>(null);
+  const [dialExt, setDialExt] = useState('');
 
   // Fetch Incident
   const { data: incident, isLoading } = useQuery({
@@ -121,6 +123,19 @@ export default function IncidentDetailPage() {
     },
     onError: (err: any) => {
       addNotification({ type: 'error', title: 'Failed to Resolve', message: err?.response?.data?.message || 'Could not resolve the incident.' });
+    },
+  });
+
+  const dialMutation = useMutation({
+    mutationFn: ({ extId, outNumber }: { extId: string; outNumber: string }) =>
+      api.post('/pbx/dial', { extId, outNumber, incidentId: id }),
+    onSuccess: () => {
+      setDialModal(null);
+      setDialExt('');
+      addNotification({ type: 'success', title: 'Call Initiated', message: 'Your phone will ring first, then connect to the number.' });
+    },
+    onError: (err: any) => {
+      addNotification({ type: 'error', title: 'Call Failed', message: err?.response?.data?.message || 'Could not initiate call.' });
     },
   });
 
@@ -306,6 +321,27 @@ export default function IncidentDetailPage() {
                 <label className="text-xs font-medium text-slate-text block mb-1">Gender</label>
                 <p className="text-sm text-brand-teal">{incident.patientGender || 'Unknown'}</p>
               </div>
+              {incident.patientContact && (
+                <div>
+                  <label className="text-xs font-medium text-slate-text block mb-1">Patient Contact</label>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-brand-teal">{incident.patientContact}</p>
+                    <button
+                      onClick={() => setDialModal({ number: incident.patientContact! })}
+                      className="p-1.5 rounded-lg bg-brand-green/10 text-brand-green hover:bg-brand-green hover:text-white transition-all"
+                      title={`Call ${incident.patientContact}`}
+                    >
+                      <Phone size={13} weight="fill" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {incident.nextOfKin && (
+                <div className="col-span-2">
+                  <label className="text-xs font-medium text-slate-text block mb-1">Next of Kin</label>
+                  <p className="text-sm text-brand-teal">{incident.nextOfKin}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -496,6 +532,56 @@ export default function IncidentDetailPage() {
               >
                 <CheckCircle size={16} weight="bold" />
                 {resolveMutation.isPending ? 'Resolving...' : 'Mark as Resolved'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click-to-Call modal */}
+      {dialModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-surface-border">
+            <h3 className="text-base font-bold text-brand-teal mb-1 flex items-center gap-2">
+              <Phone size={18} weight="fill" className="text-brand-green" />
+              Initiate Call
+            </h3>
+            <p className="text-xs text-slate-text mb-4">
+              Your extension will ring first. Once you answer, it connects to the number below.
+            </p>
+            <div className="flex flex-col gap-3 mb-5">
+              <div>
+                <label className="text-xs font-medium text-slate-text block mb-1">Your Extension</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 101"
+                  autoFocus
+                  value={dialExt}
+                  onChange={e => setDialExt(e.target.value)}
+                  className="w-full border border-surface-border rounded-lg px-4 py-2.5 text-sm font-semibold text-brand-teal focus:ring-2 focus:ring-brand-green outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-text block mb-1">Calling</label>
+                <p className="px-4 py-2.5 bg-slate-50 rounded-lg text-sm font-bold text-brand-teal border border-surface-border">
+                  {dialModal.number}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDialModal(null); setDialExt(''); }}
+                className="flex-1 px-4 py-2.5 border border-surface-border rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => dialMutation.mutate({ extId: dialExt, outNumber: dialModal.number })}
+                disabled={!dialExt.trim() || dialMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-brand-green text-white rounded-lg text-sm font-semibold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Phone size={16} weight="fill" />
+                {dialMutation.isPending ? 'Calling...' : 'Call Now'}
               </button>
             </div>
           </div>

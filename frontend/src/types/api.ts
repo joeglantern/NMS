@@ -122,3 +122,35 @@ export interface Task {
   nurseId: string;
   driver?: Pick<User, 'name' | 'phone'>;
 }
+
+export type CallDirection = 'INBOUND' | 'OUTBOUND' | 'INTERNAL';
+export type CallStatus = 'RINGING' | 'ANSWERED' | 'NO_ANSWER' | 'BUSY' | 'FAILED';
+
+export interface CallLog {
+  id: string;
+  callId: string;
+  direction: CallDirection;
+  callFrom: string;
+  callTo: string;
+  startedAt: string;
+  endedAt?: string;
+  duration: number;
+  talkDuration: number;
+  status: CallStatus;
+  recording?: string;
+  trunkName?: string;
+  didNumber?: string;
+  notes?: string;
+  createdAt: string;
+  incidentId?: string;
+  incident?: { id: string; caseNumber: string };
+}
+
+export interface ActiveCall {
+  callId: string;
+  direction: CallDirection;
+  callFrom: string;
+  callTo: string;
+  status: 'RINGING' | 'ANSWERED';
+  startedAt: string;
+}

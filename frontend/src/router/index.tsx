@@ -6,6 +6,7 @@ import DashboardPage from '../pages/dispatcher/DashboardPage';
 import QueuePage from '../pages/dispatcher/QueuePage';
 import IncidentDetailPage from '../pages/dispatcher/IncidentDetailPage';
 import FleetPage from '../pages/dispatcher/FleetPage';
+import CallLogPage from '../pages/dispatcher/CallLogPage';
 import NewIncidentWizard from '../pages/watcher/NewIncidentWizard';
 import UserManagementPage from '../pages/admin/UserManagementPage';
 import SystemSettingsPage from '../pages/admin/SystemSettingsPage';
@@ -85,6 +86,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
             <FleetPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'call-logs',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+            <CallLogPage />
           </RoleGuard>
         ),
       },
