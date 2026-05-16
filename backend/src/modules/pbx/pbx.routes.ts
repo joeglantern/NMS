@@ -20,16 +20,17 @@ export const pbxRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
 
     const body = request.body as any;
-    const action = body?.action;
+    // P-Series Cloud uses "event" field; S-Series legacy used "action"
+    const event = body?.event ?? body?.action;
 
     try {
-      if (action === 'NewCdr') {
+      if (event === 'NewCdr') {
         await pbxService.handleCdrPush(body);
-      } else if (action === 'ExtensionStatus') {
-        pbxService.handleExtensionStatus(body);
+      } else if (event === 'CallStatus') {
+        pbxService.handleCallStatus(body);
       }
     } catch (err) {
-      app.log.error({ err, action }, 'PBX webhook handler error');
+      app.log.error({ err, event }, 'PBX webhook handler error');
     }
 
     return reply.send({ ok: true });

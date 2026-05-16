@@ -69,11 +69,11 @@ const schema = {
       type: 'string',
       default: '',
     },
-    YEASTAR_USERNAME: {
+    YEASTAR_CLIENT_ID: {
       type: 'string',
       default: '',
     },
-    YEASTAR_PASSWORD: {
+    YEASTAR_CLIENT_SECRET: {
       type: 'string',
       default: '',
     },
@@ -106,8 +106,8 @@ declare module 'fastify' {
       UFFIZIO_PROJECT_ID: string;
       UFFIZIO_COMPANY: string;
       YEASTAR_BASE_URL: string;
-      YEASTAR_USERNAME: string;
-      YEASTAR_PASSWORD: string;
+      YEASTAR_CLIENT_ID: string;
+      YEASTAR_CLIENT_SECRET: string;
       YEASTAR_WEBHOOK_SECRET: string;
     };
   }

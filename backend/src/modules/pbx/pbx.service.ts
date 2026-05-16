@@ -1,48 +1,51 @@
-import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { Role } from '../../shared/types/index.js';
 
 /**
- * Yeastar S-Series PBX Integration
+ * Yeastar P-Series Cloud Edition PBX Integration
  *
- * Auth flow:
- *   POST /api/v1.1.0/user/login?username={user}&password={md5(pass)}
- *   → { status: "Success", token: "...", refreshtime: 1800 }
+ * Auth flow (OAuth2):
+ *   POST https://eoc.cras.yeastar.com/openapi/v1.0/get_token
+ *   Body: { username: <CLIENT_ID>, password: <CLIENT_SECRET> }
+ *   → { access_token, access_token_expire_time: 1800, refresh_token, refresh_token_expire_time: 86400 }
  *
- * Webhook: PBX pushes CDR and extension status events to POST /pbx/webhook
- *   Configure this in PBX > Settings > General > Application Server
+ *   All API calls append ?access_token={token} to the URL.
+ *   User-Agent: OpenAPI header is required on every request.
+ *
+ * Webhook: enable "Webhook Event Push" in PBX > Integrations > API
+ *   Set URL to: http://<your-server>/pbx/webhook
  *
  * Credentials in .env:
- *   YEASTAR_BASE_URL    = http://<pbx-ip>
- *   YEASTAR_USERNAME    = api_user
- *   YEASTAR_PASSWORD    = api_password
- *   YEASTAR_WEBHOOK_SECRET = <shared-secret>
+ *   YEASTAR_BASE_URL         = https://eoc.cras.yeastar.com
+ *   YEASTAR_CLIENT_ID        = <Client ID from PBX API page>
+ *   YEASTAR_CLIENT_SECRET    = <Client Secret from PBX API page>
+ *   YEASTAR_WEBHOOK_SECRET   = <any shared secret you set>
  */
 
-interface YeastarCdr {
-  action: 'NewCdr';
-  cdrid: string;
+// P-Series webhook event shapes
+interface PSeriesCdrEvent {
+  event: 'NewCdr';
   callid: string;
   timestart: string;
   callfrom: string;
   callto: string;
-  callduraction: string;
-  talkduraction: string;
+  callduraction: number | string;
+  talkduraction: number | string;
   srctrunkname?: string;
   desttrunkname?: string;
   didnumber?: string;
   status: string;
   type: string;
   recording?: string;
-  sn?: string;
 }
 
-interface YeastarExtStatus {
-  action: 'ExtensionStatus';
-  extensionnum: string;
-  extensionstatus: string;
-  callfrom?: string;
-  callto?: string;
+interface PSeriesCallStatusEvent {
+  event: 'CallStatus';
+  callid: string;
+  callfrom: string;
+  callto: string;
+  callstatus: string; // 'Ringing' | 'Talking' | 'Idle'
+  calltype: string;   // 'Inbound' | 'Outbound' | 'Internal'
 }
 
 export interface ActiveCall {
@@ -54,88 +57,113 @@ export interface ActiveCall {
   startedAt: string;
 }
 
-const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
+const REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
+const HEARTBEAT_INTERVAL_MS = 20 * 60 * 1000; // 20 min — well within 30 min expiry
 
 export class PbxService {
-  private token: string | null = null;
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
   private tokenExpiry = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private activeCalls = new Map<string, ActiveCall>();
 
   private readonly baseUrl: string;
-  private readonly username: string;
-  private readonly password: string;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
 
   constructor(private app: FastifyInstance) {
     this.baseUrl = (app.config.YEASTAR_BASE_URL ?? '').replace(/\/$/, '');
-    this.username = app.config.YEASTAR_USERNAME ?? '';
-    this.password = app.config.YEASTAR_PASSWORD ?? '';
+    this.clientId = app.config.YEASTAR_CLIENT_ID ?? '';
+    this.clientSecret = app.config.YEASTAR_CLIENT_SECRET ?? '';
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  private md5(str: string): string {
-    return crypto.createHash('md5').update(str).digest('hex');
+  private async login(): Promise<string> {
+    const url = `${this.baseUrl}/openapi/v1.0/get_token`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'OpenAPI',
+      },
+      body: JSON.stringify({ username: this.clientId, password: this.clientSecret }),
+    });
+
+    if (!res.ok) throw new Error(`Yeastar P-Series login failed: HTTP ${res.status}`);
+    const body: any = await res.json();
+
+    if (body.errcode !== 0) {
+      throw new Error(`Yeastar P-Series login failed: ${body.errmsg ?? body.errcode}`);
+    }
+
+    this.accessToken = body.access_token;
+    this.refreshToken = body.refresh_token;
+    this.tokenExpiry = Date.now() + (body.access_token_expire_time ?? 1800) * 1000 - REFRESH_BUFFER_MS;
+    this.app.log.info('Yeastar P-Series: authenticated');
+    return this.accessToken!;
   }
 
-  private async login(): Promise<string> {
-    const url = `${this.baseUrl}/api/v1.1.0/user/login?username=${encodeURIComponent(this.username)}&password=${this.md5(this.password)}`;
-    const res = await fetch(url, { method: 'POST' });
-    if (!res.ok) throw new Error(`Yeastar login failed: HTTP ${res.status}`);
+  private async refreshAccessToken(): Promise<string> {
+    if (!this.refreshToken) return this.login();
+
+    const url = `${this.baseUrl}/openapi/v1.0/refresh_token`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'OpenAPI' },
+      body: JSON.stringify({ refresh_token: this.refreshToken }),
+    });
+
+    if (!res.ok) {
+      this.app.log.warn('Yeastar P-Series: refresh token failed — re-authenticating');
+      return this.login();
+    }
+
     const body: any = await res.json();
-    if (body.status !== 'Success') throw new Error(`Yeastar login: ${body.status}`);
-    this.token = body.token;
-    // Expire 60s before refreshtime to avoid using stale tokens
-    this.tokenExpiry = Date.now() + ((body.refreshtime ?? 1800) - 60) * 1000;
-    this.app.log.info('Yeastar PBX: authenticated');
-    return this.token!;
+    if (body.errcode !== 0) return this.login();
+
+    this.accessToken = body.access_token;
+    if (body.refresh_token) this.refreshToken = body.refresh_token;
+    this.tokenExpiry = Date.now() + (body.access_token_expire_time ?? 1800) * 1000 - REFRESH_BUFFER_MS;
+    this.app.log.info('Yeastar P-Series: token refreshed');
+    return this.accessToken!;
   }
 
   async getToken(): Promise<string> {
-    if (this.token && Date.now() < this.tokenExpiry) return this.token;
-    return this.login();
+    if (this.accessToken && Date.now() < this.tokenExpiry) return this.accessToken;
+    return this.refreshAccessToken();
   }
 
-  private async sendHeartbeat(): Promise<void> {
-    if (!this.token) return;
-    const url = `${this.baseUrl}/api/v1.1.0/heartbeat?token=${this.token}`;
-    const res = await fetch(url, { method: 'POST' });
-    if (!res.ok) {
-      this.app.log.warn('Yeastar PBX: heartbeat failed — will re-auth on next call');
-      this.token = null;
-      return;
-    }
-    const body: any = await res.json();
-    if (body.status !== 'Success') {
-      this.app.log.warn({ body }, 'Yeastar PBX: heartbeat rejected — will re-auth on next call');
-      this.token = null;
-    }
+  private apiUrl(path: string, token: string): string {
+    return `${this.baseUrl}/openapi/v1.0/${path}?access_token=${token}`;
+  }
+
+  private apiHeaders(): HeadersInit {
+    return { 'Content-Type': 'application/json', 'User-Agent': 'OpenAPI' };
   }
 
   // ── Click-to-call ─────────────────────────────────────────────────────────
 
   async dialOutbound(extId: string, outNumber: string): Promise<void> {
     const token = await this.getToken();
-    const url = `${this.baseUrl}/api/v1.1.0/extension/dial_outbound?token=${token}`;
-    const res = await fetch(url, {
+    const res = await fetch(this.apiUrl('call/dial', token), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ extid: extId, outto: outNumber, autoanswer: 1 }),
+      headers: this.apiHeaders(),
+      body: JSON.stringify({ caller: extId, callee: outNumber }),
     });
     if (!res.ok) throw new Error(`Yeastar dial failed: HTTP ${res.status}`);
     const body: any = await res.json();
-    if (body.status !== 'Success') throw new Error(`Yeastar dial failed: ${body.status}`);
-    this.app.log.info({ extId, outNumber }, 'Yeastar PBX: outbound call initiated');
+    if (body.errcode !== 0) throw new Error(`Yeastar dial failed: ${body.errmsg ?? body.errcode}`);
+    this.app.log.info({ extId, outNumber }, 'Yeastar P-Series: outbound call initiated');
   }
 
   // ── CDR (pull from PBX) ───────────────────────────────────────────────────
 
   async queryCdrFromPbx(startTime: string, endTime: string): Promise<any[]> {
     const token = await this.getToken();
-    const url = `${this.baseUrl}/api/v1.1.0/cdr/search?token=${token}&format=json`;
-    const res = await fetch(url, {
+    const res = await fetch(this.apiUrl('cdr/search', token), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.apiHeaders(),
       body: JSON.stringify({ starttime: startTime, endtime: endTime }),
     });
     if (!res.ok) throw new Error(`Yeastar CDR query failed: HTTP ${res.status}`);
@@ -145,17 +173,16 @@ export class PbxService {
 
   // ── Webhook event handlers ────────────────────────────────────────────────
 
-  async handleCdrPush(cdr: YeastarCdr): Promise<void> {
+  async handleCdrPush(cdr: PSeriesCdrEvent): Promise<void> {
     const direction = cdr.type === 'Inbound' ? 'INBOUND' : cdr.type === 'Outbound' ? 'OUTBOUND' : 'INTERNAL';
-    const rawStatus = (cdr.status ?? '').toUpperCase().replace(' ', '_');
+    const rawStatus = (cdr.status ?? '').toUpperCase().replace(/ /g, '_');
     const status = (['ANSWERED', 'NO_ANSWER', 'BUSY', 'FAILED'] as const).includes(rawStatus as any)
       ? (rawStatus as 'ANSWERED' | 'NO_ANSWER' | 'BUSY' | 'FAILED')
       : 'FAILED';
 
-    // timestart format from PBX: "YYYY-MM-DD HH:mm:ss"
-    const startedAt = new Date(cdr.timestart.replace(' ', 'T') + 'Z');
-    const duration = parseInt(cdr.callduraction ?? '0', 10);
-    const talkDuration = parseInt(cdr.talkduraction ?? '0', 10);
+    const startedAt = new Date(String(cdr.timestart).replace(' ', 'T') + 'Z');
+    const duration = parseInt(String(cdr.callduraction ?? '0'), 10);
+    const talkDuration = parseInt(String(cdr.talkduraction ?? '0'), 10);
     const endedAt = new Date(startedAt.getTime() + duration * 1000);
 
     const saved = await this.app.prisma.callLog.upsert({
@@ -188,45 +215,38 @@ export class PbxService {
     this.app.log.info({ callId: cdr.callid, status, direction }, 'PBX: CDR saved');
   }
 
-  handleExtensionStatus(event: YeastarExtStatus): void {
-    const status = (event.extensionstatus ?? '').toLowerCase();
+  handleCallStatus(event: PSeriesCallStatusEvent): void {
+    const callStatus = (event.callstatus ?? '').toLowerCase();
+    const direction = event.calltype === 'Inbound' ? 'INBOUND' : event.calltype === 'Outbound' ? 'OUTBOUND' : 'INTERNAL';
 
-    if (status === 'ringing' && event.callfrom) {
-      const callId = `ext:${event.extensionnum}:${Date.now()}`;
+    if (callStatus === 'ringing') {
       const call: ActiveCall = {
-        callId,
-        direction: 'INBOUND',
+        callId: event.callid,
+        direction,
         callFrom: event.callfrom,
-        callTo: event.extensionnum,
+        callTo: event.callto,
         status: 'RINGING',
         startedAt: new Date().toISOString(),
       };
-      this.activeCalls.set(callId, call);
+      this.activeCalls.set(event.callid, call);
       this.app.io
         .to(`role:${Role.DISPATCHER}`)
         .to(`role:${Role.ADMIN}`)
         .to(`role:${Role.SUPER_ADMIN}`)
         .emit('pbx:call:new', call);
-    } else if (status === 'busy') {
-      for (const [id, call] of this.activeCalls) {
-        if (call.callTo === event.extensionnum || call.callFrom === event.extensionnum) {
-          const answered: ActiveCall = { ...call, status: 'ANSWERED' };
-          this.activeCalls.set(id, answered);
-          this.app.io
-            .to(`role:${Role.DISPATCHER}`)
-            .to(`role:${Role.ADMIN}`)
-            .to(`role:${Role.SUPER_ADMIN}`)
-            .emit('pbx:call:answered', answered);
-          break;
-        }
+    } else if (callStatus === 'talking') {
+      const existing = this.activeCalls.get(event.callid);
+      if (existing) {
+        const answered: ActiveCall = { ...existing, status: 'ANSWERED' };
+        this.activeCalls.set(event.callid, answered);
+        this.app.io
+          .to(`role:${Role.DISPATCHER}`)
+          .to(`role:${Role.ADMIN}`)
+          .to(`role:${Role.SUPER_ADMIN}`)
+          .emit('pbx:call:answered', answered);
       }
-    } else if (status === 'idle') {
-      for (const [id, call] of this.activeCalls) {
-        if (call.callTo === event.extensionnum || call.callFrom === event.extensionnum) {
-          this.activeCalls.delete(id);
-          break;
-        }
-      }
+    } else if (callStatus === 'idle') {
+      this.activeCalls.delete(event.callid);
     }
   }
 
@@ -237,25 +257,26 @@ export class PbxService {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   start(): void {
-    if (!this.baseUrl || !this.username || !this.password) {
+    if (!this.baseUrl || !this.clientId || !this.clientSecret) {
       this.app.log.warn(
-        'Yeastar PBX: credentials not configured — PBX integration disabled. ' +
-        'Set YEASTAR_BASE_URL, YEASTAR_USERNAME, YEASTAR_PASSWORD in .env'
+        'Yeastar P-Series: credentials not configured — PBX integration disabled. ' +
+        'Set YEASTAR_BASE_URL, YEASTAR_CLIENT_ID, YEASTAR_CLIENT_SECRET in .env'
       );
       return;
     }
 
     this.login().catch((err) =>
-      this.app.log.warn({ err }, 'Yeastar PBX: initial login failed — will retry on first request')
+      this.app.log.warn({ err }, 'Yeastar P-Series: initial login failed — will retry on first request')
     );
 
+    // Proactively refresh token well before it expires
     this.heartbeatTimer = setInterval(() => {
-      this.sendHeartbeat().catch((err) =>
-        this.app.log.warn({ err }, 'Yeastar PBX: heartbeat error')
+      this.refreshAccessToken().catch((err) =>
+        this.app.log.warn({ err }, 'Yeastar P-Series: token refresh error')
       );
     }, HEARTBEAT_INTERVAL_MS);
 
-    this.app.log.info('Yeastar PBX: service started');
+    this.app.log.info('Yeastar P-Series: service started');
   }
 
   stop(): void {
@@ -267,9 +288,9 @@ export class PbxService {
 
   healthStatus() {
     return {
-      isConnected: !!this.token && Date.now() < this.tokenExpiry,
+      isConnected: !!this.accessToken && Date.now() < this.tokenExpiry,
       activeCalls: this.activeCalls.size,
-      tokenExpiresAt: this.token ? new Date(this.tokenExpiry).toISOString() : null,
+      tokenExpiresAt: this.accessToken ? new Date(this.tokenExpiry).toISOString() : null,
     };
   }
 }
