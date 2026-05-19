@@ -95,7 +95,7 @@ export class IncidentService {
   /**
    * Retrieves a paginated list of incidents.
    */
-  async getIncidents(filters: { status?: IncidentStatus; page?: number; limit?: number }) {
+  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; page?: number; limit?: number }) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -103,6 +103,9 @@ export class IncidentService {
     const whereClause: any = {};
     if (filters.status) {
       whereClause.status = filters.status;
+    }
+    if (filters.watcherId) {
+      whereClause.watcherId = filters.watcherId;
     }
 
     const [incidents, total] = await Promise.all([
@@ -225,6 +228,8 @@ export class IncidentService {
         dispatcherComments: comments ? comments : undefined,
       },
     });
+
+    this.app.io.to(`incident:${id}`).emit('incident:update', updated);
 
     return updated;
   }
