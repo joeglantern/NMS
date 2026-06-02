@@ -152,6 +152,10 @@ model Incident {
   nextOfKinPhone   String? @map("next_of_kin_phone")
   placeOfReferral  String? @map("place_of_referral")
 
+  // Partner update fields
+  partnerNotes String? @map("partner_notes") @db.Text
+  pcrUrl       String? @map("pcr_url")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

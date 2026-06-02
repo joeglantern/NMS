@@ -14,6 +14,7 @@ import { pbxRoutes } from './modules/pbx/pbx.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { dispatchRoutes } from './modules/dispatch/dispatch.routes.js';
 import { partnerRoutes } from './modules/partner/partner.routes.js';
+import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { TrackingService } from './modules/tracking/tracking.service.js';
 
 /**
@@ -68,6 +69,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(adminRoutes, { prefix: '/admin' });
   app.register(dispatchRoutes, { prefix: '/dispatch' });
   app.register(partnerRoutes, { prefix: '/partner' });
+  app.register(analyticsRoutes, { prefix: '/analytics' });
 
   // ── GPS Tracking (Uffizio/Kimii) ──────────────────────────────────────────
   const trackingService = new TrackingService(app);

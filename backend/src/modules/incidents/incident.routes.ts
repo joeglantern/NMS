@@ -34,9 +34,23 @@ const createIncidentSchema = z.object({
 const updateIncidentSchema = z.object({
   chiefComplaint: z.string().min(3).optional(),
   locationName: z.string().min(2).optional(),
+  subCounty: z.string().optional(),
   massCasualty: z.boolean().optional(),
+  massCasualtyCount: z.number().int().positive().optional(),
   watcherComments: z.string().optional(),
   dispatcherComments: z.string().optional(),
+  dispatcherChallenges: z.string().optional(),
+  patientName: z.string().optional(),
+  patientAge: z.string().optional(),
+  patientGender: z.string().optional(),
+  patientContact: z.string().optional(),
+  nextOfKin: z.string().optional(),
+  nextOfKinPhone: z.string().optional(),
+  alertNature: z.string().optional(),
+  alertNatureDetail: z.string().optional(),
+  placeOfReferral: z.string().optional(),
+  hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
+  preHospitalManagement: z.string().optional(),
 });
 
 const updateStatusSchema = z
@@ -101,6 +115,56 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
     async (request, reply) => {
       const incident = await incidentService.getIncidentById(request.params.id);
       return reply.send({ ok: true, data: incident });
+    }
+  );
+
+  /**
+   * GET /incidents/partner-agencies
+   * Returns active partner agencies — used by dispatchers to populate the "Assign to Partner" dropdown.
+   */
+  app.get(
+    '/partner-agencies',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (_request, reply) => {
+      const agencies = await incidentService.getPartnerAgencies();
+      return reply.send({ ok: true, data: agencies });
+    }
+  );
+
+  /**
+   * POST /incidents/:id/assign-partner
+   */
+  const assignPartnerSchema = z.object({
+    partnerAgencyId: z.string().uuid(),
+    reason: z.string().min(5, 'Please provide a reason for the assignment'),
+  });
+
+  app.post<{ Params: { id: string } }>(
+    '/:id/assign-partner',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const parsed = assignPartnerSchema.safeParse(request.body);
+      if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+
+      const updated = await incidentService.assignToPartner(
+        request.params.id,
+        { userId: request.user.userId, role: request.user.role },
+        parsed.data.partnerAgencyId,
+        parsed.data.reason
+      );
+      return reply.send({ ok: true, data: updated });
+    }
+  );
+
+  /**
+   * GET /incidents/:id/audit-log
+   */
+  app.get<{ Params: { id: string } }>(
+    '/:id/audit-log',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const entries = await incidentService.getIncidentAuditLog(request.params.id);
+      return reply.send({ ok: true, data: entries });
     }
   );
 

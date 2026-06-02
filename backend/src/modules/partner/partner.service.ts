@@ -109,4 +109,30 @@ export class PartnerService {
 
     return updated;
   }
+
+  /**
+   * Partner adds notes and optionally a PCR URL + status update.
+   */
+  async addPartnerUpdate(
+    incidentId: string,
+    agencyId: string,
+    data: { notes?: string; pcrUrl?: string; status?: IncidentStatus }
+  ) {
+    const incident = await this.app.prisma.incident.findUnique({ where: { id: incidentId } });
+    if (!incident) throw new NotFoundError('Incident');
+    if (incident.assignedAgencyId !== agencyId) throw new NotFoundError('Incident');
+
+    const updated = await this.app.prisma.incident.update({
+      where: { id: incidentId },
+      data: {
+        ...(data.notes !== undefined && { partnerNotes: data.notes }),
+        ...(data.pcrUrl !== undefined && { pcrUrl: data.pcrUrl }),
+        ...(data.status !== undefined && { status: data.status }),
+      },
+    });
+
+    this.app.io.to(`incident:${incidentId}`).emit('incident:update', updated);
+
+    return updated;
+  }
 }

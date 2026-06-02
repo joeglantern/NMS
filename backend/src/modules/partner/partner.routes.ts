@@ -82,4 +82,33 @@ export const partnerRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
       return reply.send({ ok: true, data: incident });
     }
   );
+
+  /**
+   * PATCH /partner/incidents/:id/update
+   * Partner adds notes, PCR URL, and optionally changes status — all in one call.
+   */
+  const partnerUpdateSchema = z.object({
+    notes: z.string().optional(),
+    pcrUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+    status: z.nativeEnum(IncidentStatus).optional(),
+  });
+
+  app.patch<{ Params: { id: string } }>(
+    '/incidents/:id/update',
+    async (request, reply) => {
+      const parsed = partnerUpdateSchema.safeParse(request.body);
+      if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+
+      const incident = await partnerService.addPartnerUpdate(
+        request.params.id,
+        request.user.agencyId,
+        {
+          notes: parsed.data.notes,
+          pcrUrl: parsed.data.pcrUrl || undefined,
+          status: parsed.data.status,
+        }
+      );
+      return reply.send({ ok: true, data: incident });
+    }
+  );
 };
