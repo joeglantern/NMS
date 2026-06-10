@@ -503,7 +503,7 @@ export default function NewIncidentWizard() {
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <Label>Age</Label>
-                <input type="text" placeholder="e.g. 34" className={inputCls} value={form.patientAge} onChange={e => set({ patientAge: e.target.value })} />
+                <input type="number" min="0" max="120" inputMode="numeric" placeholder="e.g. 34" className={inputCls} value={form.patientAge} onChange={e => set({ patientAge: e.target.value })} />
               </Field>
               <Field>
                 <Label>Sex</Label>
@@ -523,7 +523,7 @@ export default function NewIncidentWizard() {
               </Field>
               <Field>
                 <Label>Next of Kin Phone</Label>
-                <input type="tel" placeholder="07XXXXXXXX" className={inputCls} value={form.nextOfKinPhone} onChange={e => set({ nextOfKinPhone: e.target.value })} />
+                <input type="tel" inputMode="tel" pattern="[0-9+\-\s]*" placeholder="07XXXXXXXX" className={inputCls} value={form.nextOfKinPhone} onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, ''); set({ nextOfKinPhone: v }); }} />
               </Field>
             </div>
 

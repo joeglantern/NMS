@@ -67,8 +67,9 @@ export default function DevRoleSwitcher() {
               {role.replace('_', ' ')}
             </button>
           ))}
-          <div className="border-t border-white/10 mt-1 pt-2">
-            <p className="text-[9px] text-slate-600 uppercase tracking-widest text-center">Dev only — not visible in prod</p>
+          <div className="border-t border-white/10 mt-1 pt-2 space-y-1">
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest text-center">UI navigation only</p>
+            <p className="text-[8px] text-slate-600 text-center leading-tight">API permissions use your login role — log in as that user to test API features</p>
           </div>
         </div>
       )}

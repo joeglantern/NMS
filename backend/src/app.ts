@@ -76,5 +76,20 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.addHook('onReady', async () => { trackingService.start(); });
   app.addHook('onClose', async () => { trackingService.stop(); });
 
+  // ── Global error handler ──────────────────────────────────────────────────
+  app.setErrorHandler((error: any, _request, reply) => {
+    // Known operational errors (BadRequestError, NotFoundError, etc.)
+    if (error.statusCode && error.isOperational !== false) {
+      return reply.status(error.statusCode).send({ ok: false, message: error.message });
+    }
+    // Prisma validation / known request errors — surface as 400
+    if (error.code?.startsWith('P2') || error.name === 'PrismaClientValidationError') {
+      return reply.status(400).send({ ok: false, message: 'Invalid data: check your input and try again.' });
+    }
+    // Fallback 500
+    app.log.error(error);
+    return reply.status(500).send({ ok: false, message: 'An unexpected error occurred.' });
+  });
+
   return app;
 }
