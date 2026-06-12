@@ -42,4 +42,39 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.send({ ok: true, data: locations });
     }
   );
+
+  /**
+   * POST /fleet/:vehicleId/checkin
+   * Driver/EMT/Nurse checks in to a vehicle at shift start.
+   * Auto-clears any previous vehicle assignment for this user.
+   */
+  app.post<{ Params: { vehicleId: string } }>(
+    '/:vehicleId/checkin',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
+    async (request, reply) => {
+      const vehicle = await fleetService.checkInToCrew(
+        request.params.vehicleId,
+        request.user.userId,
+        request.user.role,
+      );
+      return reply.send({ ok: true, data: vehicle });
+    }
+  );
+
+  /**
+   * DELETE /fleet/:vehicleId/checkin
+   * Crew member checks out of a vehicle (end of shift / logout).
+   */
+  app.delete<{ Params: { vehicleId: string } }>(
+    '/:vehicleId/checkin',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
+    async (request, reply) => {
+      const vehicle = await fleetService.checkOutFromCrew(
+        request.params.vehicleId,
+        request.user.userId,
+        request.user.role,
+      );
+      return reply.send({ ok: true, data: vehicle });
+    }
+  );
 };

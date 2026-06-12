@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { Coordinates } from '../../shared/types/index.js';
-import { NotFoundError } from '../../shared/errors/AppError.js';
+import { Coordinates, Role } from '../../shared/types/index.js';
+import { BadRequestError, NotFoundError } from '../../shared/errors/AppError.js';
 
 export class FleetService {
   constructor(private app: FastifyInstance) {}
@@ -55,5 +55,53 @@ export class FleetService {
     return rawData
       .filter((data): data is string => data !== null)
       .map(data => JSON.parse(data));
+  }
+
+  private crewField(role: Role): 'currentDriverId' | 'currentEmtId' | 'currentNurseId' {
+    if (role === Role.DRIVER) return 'currentDriverId';
+    if (role === Role.EMT) return 'currentEmtId';
+    if (role === Role.NURSE) return 'currentNurseId';
+    throw new BadRequestError('Role cannot check in to a vehicle');
+  }
+
+  private crewInclude = {
+    currentDriver: { select: { id: true, name: true, phone: true } },
+    currentEmt:    { select: { id: true, name: true, phone: true } },
+    currentNurse:  { select: { id: true, name: true, phone: true } },
+  } as const;
+
+  /**
+   * Crew member (driver/EMT/nurse) checks in to a vehicle at shift start.
+   * Clears any previous assignment for this user on other vehicles.
+   */
+  async checkInToCrew(vehicleId: string, userId: string, role: Role) {
+    const field = this.crewField(role);
+
+    const vehicle = await this.app.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) throw new NotFoundError('Vehicle not found');
+
+    // Clear user from any vehicle they were previously checked into
+    await this.app.prisma.vehicle.updateMany({
+      where: { [field]: userId },
+      data: { [field]: null },
+    });
+
+    return this.app.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { [field]: userId },
+      include: this.crewInclude,
+    });
+  }
+
+  /**
+   * Crew member checks out of a vehicle (on logout or end of shift).
+   */
+  async checkOutFromCrew(vehicleId: string, userId: string, role: Role) {
+    const field = this.crewField(role);
+    return this.app.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { [field]: null },
+      include: this.crewInclude,
+    });
   }
 }

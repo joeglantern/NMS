@@ -463,6 +463,32 @@ export default function FleetPage() {
               ))}
             </div>
 
+            {/* Current Crew */}
+            <div className="rounded-xl border border-surface-border overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-surface-border">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Current Crew</p>
+              </div>
+              <div className="divide-y divide-surface-border/60">
+                {[
+                  { role: 'Driver', person: selected.currentDriver },
+                  { role: 'EMT',    person: selected.currentEmt },
+                  { role: 'Nurse',  person: selected.currentNurse },
+                ].map(({ role, person }) => (
+                  <div key={role} className="flex items-center justify-between px-4 py-3">
+                    <span className="text-xs text-slate-400 font-semibold w-14">{role}</span>
+                    {person ? (
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-brand-teal">{person.name}</p>
+                        {person.phone && <p className="text-xs text-slate-400 mt-0.5">{person.phone}</p>}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-300 italic">Not checked in</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Last seen */}
             {(selectedLive?.timestamp ?? selected.lastLocationAt) && (
               <p className="text-xs text-center text-slate-400">

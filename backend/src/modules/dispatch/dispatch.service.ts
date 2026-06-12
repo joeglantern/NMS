@@ -107,6 +107,12 @@ export class DispatchService {
   async findNearestVehicles(lat: number, lng: number, agencyId?: string, limit: number = 5) {
     const allLocations = await this.fleetService.getAllActiveVehicleLocations();
 
+    const crewInclude = {
+      currentDriver: { select: { id: true, name: true, phone: true } },
+      currentEmt:    { select: { id: true, name: true, phone: true } },
+      currentNurse:  { select: { id: true, name: true, phone: true } },
+    } as const;
+
     if (allLocations.length > 0) {
       const availableVehicles = allLocations.filter(v => {
         const isAvailable = v.isActive === true;
@@ -126,15 +132,30 @@ export class DispatchService {
       }));
 
       vehiclesWithDistance.sort((a, b) => a.distanceKm - b.distanceKm);
-      return vehiclesWithDistance.slice(0, limit);
+      const top = vehiclesWithDistance.slice(0, limit);
+
+      // Enrich with crew data from DB
+      const crewRows = await this.app.prisma.vehicle.findMany({
+        where: { id: { in: top.map(v => v.id) } },
+        select: { id: true, ...crewInclude },
+      });
+      const crewMap = new Map(crewRows.map(r => [r.id, r]));
+
+      return top.map(v => ({
+        ...v,
+        currentDriver: crewMap.get(v.id)?.currentDriver ?? null,
+        currentEmt:    crewMap.get(v.id)?.currentEmt    ?? null,
+        currentNurse:  crewMap.get(v.id)?.currentNurse  ?? null,
+      }));
     }
 
-    // Redis empty — fall back to DB vehicles
+    // Redis empty — fall back to DB vehicles with crew data
     const where = agencyId ? { isActive: true, agencyId } : { isActive: true };
     const dbVehicles = await this.app.prisma.vehicle.findMany({
       where,
       take: limit,
       orderBy: { registrationNumber: 'asc' },
+      include: crewInclude,
     });
 
     return dbVehicles.map(v => ({
@@ -146,6 +167,9 @@ export class DispatchService {
       lastLng: v.lastLng,
       lastLocationAt: v.lastLocationAt,
       distanceKm: null,
+      currentDriver: v.currentDriver,
+      currentEmt:    v.currentEmt,
+      currentNurse:  v.currentNurse,
     }));
   }
 }

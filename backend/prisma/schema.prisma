@@ -106,6 +106,10 @@ model User {
   nurseTasks          Task[]     @relation("TaskNurse")
   auditLogs           AuditLog[]
 
+  currentDriverVehicles Vehicle[] @relation("VehicleCurrentDriver")
+  currentEmtVehicles    Vehicle[] @relation("VehicleCurrentEmt")
+  currentNurseVehicles  Vehicle[] @relation("VehicleCurrentNurse")
+
   @@map("users")
 }
 
@@ -249,6 +253,16 @@ model Vehicle {
 
   agencyId String @map("agency_id")
   agency   Agency @relation(fields: [agencyId], references: [id])
+
+  // Current crew checked in to this vehicle (set by the mobile app at shift start)
+  currentDriverId String? @map("current_driver_id")
+  currentDriver   User?   @relation("VehicleCurrentDriver", fields: [currentDriverId], references: [id])
+
+  currentEmtId    String? @map("current_emt_id")
+  currentEmt      User?   @relation("VehicleCurrentEmt", fields: [currentEmtId], references: [id])
+
+  currentNurseId  String? @map("current_nurse_id")
+  currentNurse    User?   @relation("VehicleCurrentNurse", fields: [currentNurseId], references: [id])
 
   tasks Task[]
 

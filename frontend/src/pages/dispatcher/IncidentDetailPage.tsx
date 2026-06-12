@@ -18,8 +18,6 @@ export default function IncidentDetailPage() {
   const { addNotification } = useNotificationStore();
 
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
-  const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [selectedEmtId, setSelectedEmtId] = useState('');
   const [dispatcherComments, setDispatcherComments] = useState('');
   const [isEditingBrief, setIsEditingBrief] = useState(false);
   const [editedComplaint, setEditedComplaint] = useState('');
@@ -93,23 +91,6 @@ export default function IncidentDetailPage() {
     enabled: !!incident,
   });
 
-  // Fetch drivers and EMTs separately so each dropdown shows the right role
-  const { data: drivers } = useQuery({
-    queryKey: ['users', 'drivers'],
-    queryFn: async () => {
-      const res = await api.get('/admin/users?role=DRIVER&limit=100');
-      return res.data.data as User[];
-    },
-  });
-
-  const { data: emts } = useQuery({
-    queryKey: ['users', 'emts'],
-    queryFn: async () => {
-      const res = await api.get('/admin/users?role=EMT&limit=100');
-      return res.data.data as User[];
-    },
-  });
-
   // Real-time: keep incident fresh when status changes or crew is assigned
   useEffect(() => {
     if (!id) return;
@@ -131,14 +112,12 @@ export default function IncidentDetailPage() {
     };
   }, [id, queryClient]);
 
-  // Dispatch Mutation — creates a Task (assigns crew to incident)
+  // Dispatch Mutation — creates a Task (crew pulled automatically from vehicle check-in)
   const dispatchMutation = useMutation({
     mutationFn: async () => {
       return api.post('/tasks', {
         incidentId: id,
         vehicleId: selectedVehicleId,
-        driverId: selectedDriverId,
-        emtId: selectedEmtId,
         dispatcherComments: dispatcherComments || undefined,
       });
     },
@@ -525,47 +504,59 @@ export default function IncidentDetailPage() {
               <h3 className="font-semibold text-brand-teal">Dispatch Assignment</h3>
             </div>
             <div className="p-6 flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="text-xs font-medium text-slate-text block mb-1">Vehicle Unit</label>
-                  <select
-                    className="w-full bg-white border border-surface-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-green outline-none"
-                    value={selectedVehicleId}
-                    onChange={e => setSelectedVehicleId(e.target.value)}
-                  >
-                    <option value="">Select available unit...</option>
-                    {(nearestVehicles || []).map(v => (
-                      <option key={v.id} value={v.id}>{v.registrationNumber}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-text block mb-1">Driver</label>
-                  <select
-                    className="w-full bg-white border border-surface-border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-green"
-                    value={selectedDriverId}
-                    onChange={e => setSelectedDriverId(e.target.value)}
-                  >
-                    <option value="">Select driver...</option>
-                    {(drivers || []).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-text block mb-1">EMT / Lead</label>
-                  <select
-                    className="w-full bg-white border border-surface-border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-green"
-                    value={selectedEmtId}
-                    onChange={e => setSelectedEmtId(e.target.value)}
-                  >
-                    <option value="">Select EMT...</option>
-                    {(emts || []).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-slate-text block mb-1">Vehicle Unit</label>
+                <select
+                  className="w-full bg-white border border-surface-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-green outline-none"
+                  value={selectedVehicleId}
+                  onChange={e => setSelectedVehicleId(e.target.value)}
+                >
+                  <option value="">Select available unit...</option>
+                  {(nearestVehicles || []).map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.registrationNumber}{v.currentDriver ? ` — ${v.currentDriver.name}` : ' — no crew'}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Crew Preview — shows who is checked in to the selected vehicle */}
+              {selectedVehicleId && (() => {
+                const sv = (nearestVehicles || []).find(v => v.id === selectedVehicleId);
+                if (!sv) return null;
+                const hasCrew = sv.currentDriver && sv.currentEmt;
+                return (
+                  <div className={`rounded-lg p-4 border text-sm ${hasCrew ? 'bg-brand-green/5 border-brand-green/20' : 'bg-status-warning/5 border-status-warning/30'}`}>
+                    <p className="text-xs font-black uppercase tracking-widest mb-3 text-slate-400">Crew on board</p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">Driver</span>
+                        <span className={`text-xs font-semibold ${sv.currentDriver ? 'text-brand-teal' : 'text-status-danger'}`}>
+                          {sv.currentDriver?.name ?? 'Not checked in'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">EMT</span>
+                        <span className={`text-xs font-semibold ${sv.currentEmt ? 'text-brand-teal' : 'text-status-danger'}`}>
+                          {sv.currentEmt?.name ?? 'Not checked in'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">Nurse</span>
+                        <span className="text-xs font-semibold text-slate-400">
+                          {sv.currentNurse?.name ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                    {!hasCrew && (
+                      <p className="text-xs text-status-warning font-medium mt-3">
+                        Driver and EMT must be checked in via the mobile app before dispatching.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="text-xs font-medium text-slate-text block mb-1">Dispatcher Notes</label>
                 <textarea
@@ -577,11 +568,17 @@ export default function IncidentDetailPage() {
               </div>
               <button
                 onClick={() => dispatchMutation.mutate()}
-                disabled={!selectedVehicleId || !selectedDriverId || !selectedEmtId || dispatchMutation.isPending || step >= 3}
+                disabled={
+                  !selectedVehicleId ||
+                  !(nearestVehicles || []).find(v => v.id === selectedVehicleId)?.currentDriver ||
+                  !(nearestVehicles || []).find(v => v.id === selectedVehicleId)?.currentEmt ||
+                  dispatchMutation.isPending ||
+                  step >= 3
+                }
                 className="w-full bg-brand-green text-white text-sm py-3 rounded-lg font-semibold hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PaperPlaneRight size={18} weight="fill" />
-                {step >= 3 ? 'Already Dispatched' : dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch Crew'}
+                {step >= 3 ? 'Already Dispatched' : dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch Vehicle'}
               </button>
             </div>
           </div>

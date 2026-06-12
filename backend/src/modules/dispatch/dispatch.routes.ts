@@ -79,7 +79,12 @@ export const dispatchRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
     async (_request, reply) => {
       const vehicles = await app.prisma.vehicle.findMany({
         orderBy: { createdAt: 'desc' },
-        include: { agency: { select: { id: true, name: true } } },
+        include: {
+          agency:        { select: { id: true, name: true } },
+          currentDriver: { select: { id: true, name: true, phone: true } },
+          currentEmt:    { select: { id: true, name: true, phone: true } },
+          currentNurse:  { select: { id: true, name: true, phone: true } },
+        },
       });
       return reply.send({ ok: true, data: vehicles });
     }

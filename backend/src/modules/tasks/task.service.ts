@@ -8,16 +8,14 @@ export class TaskService {
   constructor(private app: FastifyInstance) {}
 
   /**
-   * Creates a new task (dispatching a vehicle and crew to an incident).
+   * Creates a new task by dispatching a vehicle to an incident.
+   * Crew (driver/EMT/nurse) is pulled from whoever is checked in to the vehicle.
    */
   async createTask(
     user: { userId: string; role: Role },
     data: {
       incidentId: string;
       vehicleId: string;
-      driverId: string;
-      emtId: string;
-      nurseId?: string;
       dispatcherComments?: string;
     }
   ) {
@@ -25,22 +23,32 @@ export class TaskService {
       throw new ForbiddenError('Only dispatchers and admins can create tasks');
     }
 
-    const incident = await this.app.prisma.incident.findUnique({
-      where: { id: data.incidentId },
-    });
+    const [incident, vehicle] = await Promise.all([
+      this.app.prisma.incident.findUnique({ where: { id: data.incidentId } }),
+      this.app.prisma.vehicle.findUnique({
+        where: { id: data.vehicleId },
+        include: {
+          currentDriver: { select: { id: true, name: true } },
+          currentEmt:    { select: { id: true, name: true } },
+          currentNurse:  { select: { id: true, name: true } },
+        },
+      }),
+    ]);
 
     if (!incident) throw new NotFoundError('Incident not found');
+    if (!vehicle) throw new NotFoundError('Vehicle not found');
+    if (!vehicle.currentDriverId) throw new BadRequestError('No driver is checked in to this vehicle');
+    if (!vehicle.currentEmtId) throw new BadRequestError('No EMT is checked in to this vehicle');
 
-    // Create the task, update incident status, and mark vehicle as BUSY — all atomically
     const [task] = await this.app.prisma.$transaction([
       this.app.prisma.task.create({
         data: {
           status: TaskStatus.PENDING,
           incidentId: data.incidentId,
           vehicleId: data.vehicleId,
-          driverId: data.driverId,
-          emtId: data.emtId,
-          nurseId: data.nurseId || undefined,
+          driverId: vehicle.currentDriverId,
+          emtId: vehicle.currentEmtId,
+          nurseId: vehicle.currentNurseId ?? undefined,
         },
       }),
       this.app.prisma.incident.update({
@@ -56,9 +64,11 @@ export class TaskService {
       }),
     ]);
 
-    // Broadcast to the crew
-    let room = this.app.io.to(`user:${data.driverId}`).to(`user:${data.emtId}`);
-    if (data.nurseId) room = room.to(`user:${data.nurseId}`);
+    // Notify crew via socket
+    let room = this.app.io
+      .to(`user:${vehicle.currentDriverId}`)
+      .to(`user:${vehicle.currentEmtId}`);
+    if (vehicle.currentNurseId) room = room.to(`user:${vehicle.currentNurseId}`);
     room.emit('task:assigned', task);
 
     return task;
