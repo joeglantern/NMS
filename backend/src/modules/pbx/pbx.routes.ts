@@ -120,7 +120,7 @@ export const pbxRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // PBX health — connection state, active call count
   app.get('/health', {
-    preValidation: [app.authenticate, requireRole([Role.ADMIN, Role.SUPER_ADMIN])],
+    preValidation: [app.authenticate, requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])],
   }, async (_request, reply) => {
     return reply.send({ ok: true, data: pbxService.healthStatus() });
   });

@@ -92,7 +92,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   /**
    * GET /incidents
    */
-  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; page?: string; limit?: string } }>(
+  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: string; limit?: string } }>(
     '/',
     async (request, reply) => {
       const page = request.query.page ? parseInt(request.query.page, 10) : 1;
@@ -101,6 +101,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
       const result = await incidentService.getIncidents({
         status: request.query.status,
         watcherId: request.query.watcherId,
+        caseNumber: request.query.caseNumber,
         page,
         limit,
       });

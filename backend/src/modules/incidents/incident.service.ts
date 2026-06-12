@@ -111,7 +111,7 @@ export class IncidentService {
     return incident;
   }
 
-  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; page?: number; limit?: number }) {
+  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: number; limit?: number }) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -119,6 +119,7 @@ export class IncidentService {
     const whereClause: any = {};
     if (filters.status) whereClause.status = filters.status;
     if (filters.watcherId) whereClause.watcherId = filters.watcherId;
+    if (filters.caseNumber) whereClause.caseNumber = { contains: filters.caseNumber, mode: 'insensitive' };
 
     const [incidents, total] = await Promise.all([
       this.app.prisma.incident.findMany({

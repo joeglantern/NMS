@@ -9,6 +9,8 @@ import {
   Funnel,
   LinkSimple,
   ArrowClockwise,
+  Warning,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { formatDistanceToNow, format } from 'date-fns';
 import api from '../../api/client';
@@ -42,6 +44,16 @@ export default function CallLogPage() {
   const { addNotification } = useNotificationStore();
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
+
+  const { data: pbxHealth } = useQuery({
+    queryKey: ['pbx', 'health'],
+    queryFn: async () => {
+      const res = await api.get('/pbx/health');
+      return res.data.data as { isConfigured: boolean; isConnected: boolean; activeCalls: number; tokenExpiresAt: string | null };
+    },
+    refetchInterval: 30_000,
+    retry: false,
+  });
 
   const [search, setSearch]           = useState('');
   const [direction, setDirection]     = useState('');
@@ -88,9 +100,8 @@ export default function CallLogPage() {
 
   async function handleLinkSubmit() {
     if (!linkModal || !caseNumber.trim()) return;
-    // Resolve case number → incident id
     try {
-      const res = await api.get(`/incidents?search=${encodeURIComponent(caseNumber.trim())}&limit=1`);
+      const res = await api.get(`/incidents?caseNumber=${encodeURIComponent(caseNumber.trim())}&limit=5`);
       const incidents = res.data.data as Array<{ id: string; caseNumber: string }>;
       const match = incidents.find(i => i.caseNumber.toLowerCase() === caseNumber.trim().toLowerCase());
       if (!match) {
@@ -121,6 +132,32 @@ export default function CallLogPage() {
           <ArrowClockwise size={18} weight="bold" />
         </button>
       </div>
+
+      {/* PBX connection status */}
+      {pbxHealth && !pbxHealth.isConfigured && (
+        <div className="flex items-center gap-3 bg-status-warning/10 border border-status-warning/30 rounded-xl px-5 py-3.5">
+          <Warning size={18} weight="fill" className="text-status-warning flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-status-warning">Yeastar PBX not configured</p>
+            <p className="text-xs text-status-warning/80 mt-0.5">Set <code className="font-mono bg-status-warning/10 px-1 rounded">YEASTAR_BASE_URL</code>, <code className="font-mono bg-status-warning/10 px-1 rounded">YEASTAR_CLIENT_ID</code>, and <code className="font-mono bg-status-warning/10 px-1 rounded">YEASTAR_CLIENT_SECRET</code> in the backend <code className="font-mono bg-status-warning/10 px-1 rounded">.env</code> file, then restart the backend.</p>
+          </div>
+        </div>
+      )}
+      {pbxHealth?.isConfigured && !pbxHealth.isConnected && (
+        <div className="flex items-center gap-3 bg-status-danger/10 border border-status-danger/30 rounded-xl px-5 py-3.5">
+          <Warning size={18} weight="fill" className="text-status-danger flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-status-danger">PBX authentication failed</p>
+            <p className="text-xs text-status-danger/80 mt-0.5">Credentials are set but the server cannot reach Yeastar. Check the backend logs for the specific error.</p>
+          </div>
+        </div>
+      )}
+      {pbxHealth?.isConnected && (
+        <div className="flex items-center gap-2 bg-brand-green/10 border border-brand-green/20 rounded-xl px-5 py-3 text-brand-green text-sm font-semibold">
+          <CheckCircle size={16} weight="fill" />
+          PBX connected — token valid until {pbxHealth.tokenExpiresAt ? new Date(pbxHealth.tokenExpiresAt).toLocaleTimeString() : '—'}
+        </div>
+      )}
 
       {/* Active calls banner */}
       {activeCalls.length > 0 && (

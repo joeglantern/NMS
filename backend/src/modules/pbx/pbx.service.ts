@@ -144,7 +144,14 @@ export class PbxService {
 
   // ── Click-to-call ─────────────────────────────────────────────────────────
 
+  isConfigured(): boolean {
+    return !!(this.baseUrl && this.clientId && this.clientSecret);
+  }
+
   async dialOutbound(extId: string, outNumber: string): Promise<void> {
+    if (!this.isConfigured()) {
+      throw new Error('PBX integration is not configured — set YEASTAR_BASE_URL, YEASTAR_CLIENT_ID, YEASTAR_CLIENT_SECRET in .env');
+    }
     const token = await this.getToken();
     const res = await fetch(this.apiUrl('call/dial', token), {
       method: 'POST',
@@ -180,7 +187,8 @@ export class PbxService {
       ? (rawStatus as 'ANSWERED' | 'NO_ANSWER' | 'BUSY' | 'FAILED')
       : 'FAILED';
 
-    const startedAt = new Date(String(cdr.timestart).replace(' ', 'T') + 'Z');
+    // Yeastar sends local time as "YYYY-MM-DD HH:MM:SS" — treat as-is without forcing UTC
+    const startedAt = new Date(String(cdr.timestart).replace(' ', 'T'));
     const duration = parseInt(String(cdr.callduraction ?? '0'), 10);
     const talkDuration = parseInt(String(cdr.talkduraction ?? '0'), 10);
     const endedAt = new Date(startedAt.getTime() + duration * 1000);
@@ -288,6 +296,7 @@ export class PbxService {
 
   healthStatus() {
     return {
+      isConfigured: this.isConfigured(),
       isConnected: !!this.accessToken && Date.now() < this.tokenExpiry,
       activeCalls: this.activeCalls.size,
       tokenExpiresAt: this.accessToken ? new Date(this.tokenExpiry).toISOString() : null,
