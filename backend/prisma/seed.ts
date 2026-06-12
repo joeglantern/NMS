@@ -105,6 +105,7 @@ async function main() {
   // ── 4. Fleet — real vehicles from Uffizio/Kimii Telematics ─────────────────
   // IMEIs confirmed from live Uffizio API response (getTokenBaseLiveData).
   // The TrackingService matches by imei to write lastLat/lastLng every 30s.
+  // ⚠️  GKB 847V: IMEI below is 13 digits — real IMEIs are 15. Verify on Uffizio dashboard and correct here.
   const uffizioVehicles = [
     { registrationNumber: 'GKB 847V', imei: '8642870320357'   },
     { registrationNumber: 'GKB 645W', imei: '350317178839878' },
@@ -123,13 +124,7 @@ async function main() {
     console.log(`✅ Vehicle: ${created.registrationNumber} (IMEI ${created.imei})`);
   }
 
-  // Keep the legacy placeholder so existing task/dispatch test data doesn't break
-  await prisma.vehicle.upsert({
-    where: { registrationNumber: 'KCX 123A' },
-    update: {},
-    create: { registrationNumber: 'KCX 123A', imei: 'NMS-AMB-001', agencyId: nmsAgency.id, isActive: false },
-  });
-  console.log('✅ Placeholder vehicle kept (inactive)');
+  // KCX 123A mock placeholder removed — all vehicles are real Uffizio units above
 
   const driver = await prisma.user.upsert({
     where: { id: 'driver-001' },
