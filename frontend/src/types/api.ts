@@ -41,6 +41,12 @@ export interface Agency {
   isActive: boolean;
 }
 
+export interface CrewMember {
+  id: string;
+  name: string;
+  phone?: string | null;
+}
+
 export interface Vehicle {
   id: string;
   registrationNumber: string;
@@ -53,6 +59,9 @@ export interface Vehicle {
   updatedAt?: string;
   createdAt?: string;
   agencyId: string;
+  currentDriver?: CrewMember | null;
+  currentEmt?: CrewMember | null;
+  currentNurse?: CrewMember | null;
 }
 
 export interface PaginatedResponse<T> {
