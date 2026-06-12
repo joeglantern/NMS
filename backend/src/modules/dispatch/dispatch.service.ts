@@ -107,48 +107,27 @@ export class DispatchService {
   async findNearestVehicles(lat: number, lng: number, agencyId?: string, limit: number = 5) {
     const allLocations = await this.fleetService.getAllActiveVehicleLocations();
 
-    if (allLocations.length > 0) {
-      const availableVehicles = allLocations.filter(v => {
-        const isAvailable = v.isActive === true;
-        const matchesAgency = agencyId ? v.agencyId === agencyId : true;
-        return isAvailable && matchesAgency;
-      });
-
-      const vehiclesWithDistance = availableVehicles.map(v => ({
-        id: v.vehicleId,
-        registrationNumber: v.registration,
-        agencyId: v.agencyId,
-        isActive: v.isActive,
-        lastLat: v.lat,
-        lastLng: v.lng,
-        lastLocationAt: v.timestamp,
-        distanceKm: haversineDistance(lat, lng, v.lat, v.lng),
-      }));
-
-      vehiclesWithDistance.sort((a, b) => a.distanceKm - b.distanceKm);
-      return vehiclesWithDistance.slice(0, limit);
-    }
-
-    // Redis empty — fall back to DB vehicles
-    const where = agencyId
-      ? { isActive: true, agencyId }
-      : { isActive: true };
-
-    const dbVehicles = await this.app.prisma.vehicle.findMany({
-      where,
-      take: limit,
-      orderBy: { registrationNumber: 'asc' },
+    const availableVehicles = allLocations.filter(v => {
+      const isAvailable = v.isActive === true;
+      const matchesAgency = agencyId ? v.agencyId === agencyId : true;
+      return isAvailable && matchesAgency;
     });
 
-    return dbVehicles.map(v => ({
-      id: v.id,
-      registrationNumber: v.registrationNumber,
+    const vehiclesWithDistance = availableVehicles.map(v => ({
+      // Normalize Redis payload to match the DB Vehicle shape the frontend expects
+      id: v.vehicleId,
+      registrationNumber: v.registration,
       agencyId: v.agencyId,
       isActive: v.isActive,
-      lastLat: v.lastLat,
-      lastLng: v.lastLng,
-      lastLocationAt: v.lastLocationAt,
-      distanceKm: null,
+      lastLat: v.lat,
+      lastLng: v.lng,
+      lastLocationAt: v.timestamp,
+      // Extra field for UI distance display
+      distanceKm: haversineDistance(lat, lng, v.lat, v.lng),
     }));
+
+    vehiclesWithDistance.sort((a, b) => a.distanceKm - b.distanceKm);
+
+    return vehiclesWithDistance.slice(0, limit);
   }
 }

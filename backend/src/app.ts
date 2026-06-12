@@ -15,8 +15,6 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 import { dispatchRoutes } from './modules/dispatch/dispatch.routes.js';
 import { partnerRoutes } from './modules/partner/partner.routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
-import { handoffRoutes } from './modules/handoff/handoff.routes.js';
-import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 import { TrackingService } from './modules/tracking/tracking.service.js';
 
 /**
@@ -72,28 +70,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(dispatchRoutes, { prefix: '/dispatch' });
   app.register(partnerRoutes, { prefix: '/partner' });
   app.register(analyticsRoutes, { prefix: '/analytics' });
-  app.register(handoffRoutes, { prefix: '/handoff' });
-  app.register(notificationsRoutes, { prefix: '/notifications' });
 
   // ── GPS Tracking (Uffizio/Kimii) ──────────────────────────────────────────
   const trackingService = new TrackingService(app);
   app.addHook('onReady', async () => { trackingService.start(); });
   app.addHook('onClose', async () => { trackingService.stop(); });
-
-  // ── Global error handler ──────────────────────────────────────────────────
-  app.setErrorHandler((error: any, _request, reply) => {
-    // Known operational errors (BadRequestError, NotFoundError, etc.)
-    if (error.statusCode && error.isOperational !== false) {
-      return reply.status(error.statusCode).send({ ok: false, message: error.message });
-    }
-    // Prisma validation / known request errors — surface as 400
-    if (error.code?.startsWith('P2') || error.name === 'PrismaClientValidationError') {
-      return reply.status(400).send({ ok: false, message: 'Invalid data: check your input and try again.' });
-    }
-    // Fallback 500
-    app.log.error(error);
-    return reply.status(500).send({ ok: false, message: 'An unexpected error occurred.' });
-  });
 
   return app;
 }
