@@ -70,7 +70,7 @@ export default function WatcherDashboardPage() {
   const resolvedCount   = incidents.filter(i => i.status === 'RESOLVED').length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-[1400px] mx-auto w-full">
+    <div className="col" style={{ gap: 20 }}>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-5 rounded-xl border border-surface-border shadow-sm">

@@ -29,18 +29,18 @@ interface AnalyticsData {
 type Preset = '7d' | '30d' | '90d' | 'custom';
 
 const GENDER_COLORS: Record<string, string> = {
-  Male: '#006973',
-  Female: '#88c241',
-  Unknown: '#94a3b8',
+  Male: '#15211B',
+  Female: '#005A32',
+  Unknown: '#6B7670',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  RESOLVED: '#88c241',
-  DISPATCHED: '#006973',
-  DISPATCH_HANDLING: '#3b82f6',
-  SUBMITTED: '#f59e0b',
-  DRAFT: '#94a3b8',
-  DISPATCH_ON_HOLD: '#6b7280',
+  RESOLVED: '#005A32',
+  DISPATCHED: '#15211B',
+  DISPATCH_HANDLING: '#2563EB',
+  SUBMITTED: '#B7791F',
+  DRAFT: '#6B7670',
+  DISPATCH_ON_HOLD: '#94A099',
 };
 
 function getDateRange(preset: Preset, customFrom: string, customTo: string): { from: string; to: string } {
@@ -129,183 +129,139 @@ export default function AnalyticsPage() {
   const hotZone = data?.bySubCounty[0]?.subCounty ?? '—';
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
+    <div className="col" style={{ gap: 20 }}>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-5 rounded-xl border border-surface-border shadow-sm">
+      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 className="text-xl font-bold text-brand-teal">Analytics Dashboard</h2>
-          <p className="text-xs text-slate-text mt-0.5">Operational performance and incident data</p>
+          <div className="section-title" style={{ fontSize: 20 }}>Analytics Dashboard</div>
+          <div className="muted" style={{ fontSize: 13.5, marginTop: 3 }}>Operational performance and incident data</div>
         </div>
-        <button
-          onClick={exportReport}
-          className="w-full sm:w-auto bg-white border border-surface-border text-brand-teal hover:bg-slate-50 px-5 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-        >
-          <Download size={18} weight="bold" />
-          Export Report
+        <button className="btn btn-ghost" onClick={exportReport}>
+          <Download size={16} /> Export Report
         </button>
       </div>
 
       {/* Date Range Picker */}
-      <div className="bg-white border border-surface-border rounded-xl p-4 flex flex-wrap items-center gap-3">
-        <CalendarBlank size={18} className="text-slate-400 shrink-0" />
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Date Range</span>
-        {(['7d', '30d', '90d'] as Preset[]).map(p => (
-          <button
-            key={p}
-            onClick={() => setPreset(p)}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-              preset === p
-                ? 'bg-brand-teal text-white shadow-sm'
-                : 'border border-surface-border text-slate-500 hover:border-brand-teal hover:text-brand-teal'
-            }`}
-          >
-            {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-          </button>
-        ))}
-        <button
-          onClick={() => setPreset('custom')}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            preset === 'custom'
-              ? 'bg-brand-teal text-white shadow-sm'
-              : 'border border-surface-border text-slate-500 hover:border-brand-teal hover:text-brand-teal'
-          }`}
-        >
-          Custom
-        </button>
-        {preset === 'custom' && (
-          <div className="flex items-center gap-2 ml-2">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={e => setCustomFrom(e.target.value)}
-              className="border border-surface-border rounded-lg px-3 py-2 text-xs text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal"
-            />
-            <ArrowRight size={14} className="text-slate-400" />
-            <input
-              type="date"
-              value={customTo}
-              onChange={e => setCustomTo(e.target.value)}
-              className="border border-surface-border rounded-lg px-3 py-2 text-xs text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal"
-            />
+      <div className="card card-pad">
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <CalendarBlank size={16} color="var(--muted)" />
+          <div className="seg">
+            {(['7d', '30d', '90d'] as Preset[]).map((p) => (
+              <button key={p} className={preset === p ? 'on' : ''} onClick={() => setPreset(p)}>
+                {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+              </button>
+            ))}
+            <button className={preset === 'custom' ? 'on' : ''} onClick={() => setPreset('custom')}>Custom</button>
           </div>
-        )}
-        {isLoading && (
-          <div className="ml-auto flex items-center gap-2 text-xs text-slate-400">
-            <div className="w-4 h-4 border-2 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin" />
-            Loading...
-          </div>
-        )}
+          {preset === 'custom' && (
+            <div className="row" style={{ gap: 8 }}>
+              <input type="date" className="input" style={{ height: 34, width: 150, padding: '0 10px', fontSize: 13 }} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+              <ArrowRight size={13} color="var(--muted)" />
+              <input type="date" className="input" style={{ height: 34, width: 150, padding: '0 10px', fontSize: 13 }} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+            </div>
+          )}
+          {isLoading && <div className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>Loading…</div>}
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-surface-border shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium text-slate-text">Total Incidents</p>
-            <Clock size={16} weight="fill" className="text-brand-green" />
-          </div>
-          <p className="text-3xl font-bold text-brand-teal leading-none">{data?.total ?? '—'}</p>
-          <p className="text-xs font-medium text-brand-green mt-2">{resolvedCount} resolved</p>
+      <div className="stat-grid">
+        <div className="stat">
+          <div className="stat-ico" style={{ background: 'var(--green-light)' }}><Clock size={18} color="var(--green)" weight="fill" /></div>
+          <div className="stat-label">Total Incidents</div>
+          <div className="stat-val">{data?.total ?? '—'}</div>
+          <div className="stat-foot"><Clock size={12} /> {resolvedCount} resolved</div>
         </div>
-
-        <div className="bg-white p-5 rounded-xl border border-surface-border shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium text-slate-text">Awaiting Dispatch</p>
-            <Warning size={16} weight="fill" className="text-status-danger" />
-          </div>
-          <p className="text-3xl font-bold text-brand-teal leading-none">{submittedCount}</p>
-          <p className={`text-xs font-medium mt-2 ${submittedCount > 0 ? 'text-status-danger' : 'text-slate-text'}`}>
-            {submittedCount > 0 ? 'Needs attention' : 'Queue clear'}
-          </p>
+        <div className="stat">
+          <div className="stat-ico" style={{ background: 'var(--red-soft)' }}><Warning size={18} color="var(--red)" weight="fill" /></div>
+          <div className="stat-label">Awaiting Dispatch</div>
+          <div className="stat-val">{submittedCount}</div>
+          <div className="stat-foot" style={{ color: submittedCount > 0 ? 'var(--red)' : undefined }}>{submittedCount > 0 ? 'Needs attention' : 'Queue clear'}</div>
         </div>
-
-        <div className="bg-white p-5 rounded-xl border border-surface-border shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium text-slate-text">Avg Dispatch TAT</p>
-            <Timer size={16} weight="fill" className="text-status-info" />
-          </div>
-          <p className="text-3xl font-bold text-brand-teal leading-none">
-            {data?.tat.avgDispatchMinutes != null ? `${data.tat.avgDispatchMinutes}m` : '—'}
-          </p>
-          <p className="text-xs text-slate-text mt-2">from received to accepted</p>
+        <div className="stat">
+          <div className="stat-ico" style={{ background: 'var(--blue-soft)' }}><Timer size={18} color="var(--blue)" weight="fill" /></div>
+          <div className="stat-label">Avg Dispatch TAT</div>
+          <div className="stat-val">{data?.tat.avgDispatchMinutes != null ? `${data.tat.avgDispatchMinutes}m` : '—'}</div>
+          <div className="stat-foot"><Timer size={12} /> from received to accepted</div>
         </div>
-
-        <div className="bg-brand-sidebar p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium text-slate-400">Incident Hotzone</p>
-            <MapPinLine size={16} weight="fill" className="text-brand-green" />
-          </div>
-          <p className="text-3xl font-bold text-white leading-none truncate">{hotZone}</p>
-          <p className="text-xs text-brand-green mt-2">{data?.bySubCounty[0]?.count ?? 0} cases logged</p>
+        <div className="stat dark-stat">
+          <div className="stat-ico" style={{ background: 'rgba(95,215,154,.15)' }}><MapPinLine size={18} color="#5FD79A" weight="fill" /></div>
+          <div className="stat-label">Incident Hotzone</div>
+          <div className="stat-val" style={{ fontSize: 22, letterSpacing: '-.02em' }}>{hotZone}</div>
+          <div className="stat-foot"><MapPinLine size={12} /> {data?.bySubCounty[0]?.count ?? 0} cases logged</div>
         </div>
       </div>
 
       {/* TAT Breakdown */}
-      <div className="bg-white border border-surface-border rounded-xl p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-brand-teal mb-4 flex items-center gap-2">
-          <Timer size={16} weight="fill" /> Turnaround Time Breakdown
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title"><Timer size={14} style={{ display: 'inline', marginRight: 6 }} />Turnaround Time Breakdown</span>
+        </div>
+        <div className="card-pad" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           {[
-            { label: 'Dispatch → Accepted', value: data?.tat.avgDispatchMinutes, desc: 'Time until crew accepts task', color: 'text-brand-green' },
-            { label: 'Accepted → Scene Arrival', value: data?.tat.avgSceneMinutes, desc: 'Travel time to incident scene', color: 'text-status-info' },
-            { label: 'Scene → Hospital', value: data?.tat.avgHospitalMinutes, desc: 'Patient transport time', color: 'text-status-warning' },
-          ].map(item => (
-            <div key={item.label} className="bg-slate-50 rounded-xl p-4 border border-surface-border">
-              <p className="text-xs font-medium text-slate-400 mb-2">{item.label}</p>
-              <p className={`text-4xl font-bold ${item.color} leading-none`}>
-                {item.value != null ? `${item.value}` : '—'}
-                {item.value != null && <span className="text-xl font-semibold ml-1">min</span>}
-              </p>
-              <p className="text-xs text-slate-400 mt-2">{item.desc}</p>
+            { label: 'Dispatch → Accepted', value: data?.tat.avgDispatchMinutes, desc: 'Time until crew accepts task', color: 'var(--green)' },
+            { label: 'Accepted → Scene Arrival', value: data?.tat.avgSceneMinutes, desc: 'Travel time to incident scene', color: 'var(--blue)' },
+            { label: 'Scene → Hospital', value: data?.tat.avgHospitalMinutes, desc: 'Patient transport time', color: 'var(--amber)' },
+          ].map((item) => (
+            <div key={item.label} style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>{item.label}</div>
+              <div className="mono" style={{ fontSize: 36, fontWeight: 700, color: item.color, letterSpacing: '-.03em', lineHeight: 1 }}>
+                {item.value != null ? item.value : '—'}
+                {item.value != null && <span style={{ fontSize: 18, marginLeft: 4 }}>min</span>}
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{item.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Charts Grid — Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
         {/* Incident Trend */}
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[360px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal">Incident Trend</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Daily cases in selected period</p>
+        <div className="card" style={{ height: 360, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Incident Trend</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Daily cases in selected period</div>
+            </div>
           </div>
-          <div className="flex-1 w-full">
+          <div style={{ flex: 1, padding: '16px 20px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data?.trend ?? []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#88c241" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#88c241" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#005A32" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#005A32" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dx={-10} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} dx={-10} allowDecimals={false} />
                 <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="count" stroke="#88c241" strokeWidth={2.5} fill="url(#trendGrad)" name="Incidents" />
+                <Area type="monotone" dataKey="count" stroke="#005A32" strokeWidth={2.5} fill="url(#trendGrad)" name="Incidents" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Sub-County Breakdown */}
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[360px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal">Incidents by Sub-County</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Top 8 areas by case volume</p>
+        <div className="card" style={{ height: 360, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Incidents by Sub-County</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Top areas by case volume</div>
+            </div>
           </div>
-          <div className="flex-1 w-full">
+          <div style={{ flex: 1, padding: '16px 20px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data?.bySubCounty ?? []} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="subCounty" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} width={100} />
+                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="var(--border)" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="subCounty" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink-2)', fontSize: 11 }} width={100} />
                 <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
-                <Bar dataKey="count" name="Cases" fill="#88c241" radius={[0, 4, 4, 0]} barSize={16} />
+                <Bar dataKey="count" name="Cases" fill="#005A32" radius={[0, 4, 4, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -313,108 +269,71 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Charts Grid — Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
 
         {/* Gender Distribution */}
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[320px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal">Gender Distribution</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Patient demographics</p>
+        <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div className="card-title">Gender Distribution</div>
           </div>
-          <div className="flex-1 w-full">
+          <div style={{ flex: 1, padding: '8px 20px' }}>
             {(data?.byGender.length ?? 0) > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={data?.byGender}
-                    dataKey="count"
-                    nameKey="gender"
-                    cx="50%"
-                    cy="45%"
-                    innerRadius="45%"
-                    outerRadius="70%"
-                    paddingAngle={3}
-                  >
-                    {data?.byGender.map(entry => (
-                      <Cell key={entry.gender} fill={GENDER_COLORS[entry.gender] ?? '#cbd5e1'} />
-                    ))}
+                  <Pie data={data?.byGender} dataKey="count" nameKey="gender" cx="50%" cy="45%" innerRadius="45%" outerRadius="70%" paddingAngle={3}>
+                    {data?.byGender.map((entry) => <Cell key={entry.gender} fill={GENDER_COLORS[entry.gender] ?? '#6B7670'} />)}
                   </Pie>
                   <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-300 text-sm">No data</div>
+              <div className="muted" style={{ textAlign: 'center', paddingTop: 60, fontSize: 13 }}>No data</div>
             )}
           </div>
         </div>
 
         {/* Case Outcomes */}
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[320px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal">Case Outcomes</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Status breakdown</p>
+        <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div className="card-title">Case Outcomes</div>
           </div>
-          <div className="flex-1 w-full">
+          <div style={{ flex: 1, padding: '8px 20px' }}>
             {(data?.byStatus.length ?? 0) > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={data?.byStatus}
-                    dataKey="count"
-                    nameKey="status"
-                    cx="50%"
-                    cy="45%"
-                    innerRadius="45%"
-                    outerRadius="70%"
-                    paddingAngle={3}
-                  >
-                    {data?.byStatus.map(entry => (
-                      <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? '#cbd5e1'} />
-                    ))}
+                  <Pie data={data?.byStatus} dataKey="count" nameKey="status" cx="50%" cy="45%" innerRadius="45%" outerRadius="70%" paddingAngle={3}>
+                    {data?.byStatus.map((entry) => <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? '#6B7670'} />)}
                   </Pie>
-                  <RechartsTooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ fontSize: 12 }}
-                    formatter={(value, name) => [value, String(name).replace(/_/g, ' ')]}
-                  />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
-                    formatter={value => String(value).replace(/_/g, ' ')}
-                  />
+                  <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} formatter={(value, name) => [value, String(name).replace(/_/g, ' ')]} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, paddingTop: 8 }} formatter={(value) => String(value).replace(/_/g, ' ')} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-300 text-sm">No data</div>
+              <div className="muted" style={{ textAlign: 'center', paddingTop: 60, fontSize: 13 }}>No data</div>
             )}
           </div>
         </div>
 
-        {/* Ambulance Utilization — fleet stats */}
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[320px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal">Ambulance Utilization</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Tasks per status in period</p>
+        {/* Ambulance Utilization */}
+        <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div className="card-title">Ambulance Utilization</div>
           </div>
-          <div className="flex flex-col gap-3 mt-2">
+          <div className="card-pad col" style={{ gap: 14 }}>
             {[
-              { label: 'Total Tasks', value: data?.byStatus.reduce((a, s) => a + s.count, 0) ?? 0, color: 'bg-brand-teal' },
-              { label: 'Resolved', value: resolvedCount, color: 'bg-brand-green' },
-              { label: 'Active / Dispatched', value: (data?.byStatus.find(s => s.status === 'DISPATCHED')?.count ?? 0) + (data?.byStatus.find(s => s.status === 'DISPATCH_HANDLING')?.count ?? 0), color: 'bg-status-info' },
-              { label: 'Pending', value: submittedCount, color: 'bg-status-warning' },
-            ].map(item => (
+              { label: 'Total Tasks', value: data?.byStatus.reduce((a, s) => a + s.count, 0) ?? 0, color: 'var(--ink)' },
+              { label: 'Resolved', value: resolvedCount, color: 'var(--green)' },
+              { label: 'Active / Dispatched', value: (data?.byStatus.find((s) => s.status === 'DISPATCHED')?.count ?? 0) + (data?.byStatus.find((s) => s.status === 'DISPATCH_HANDLING')?.count ?? 0), color: 'var(--blue)' },
+              { label: 'Pending', value: submittedCount, color: 'var(--amber)' },
+            ].map((item) => (
               <div key={item.label}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">{item.label}</span>
-                  <span className="font-semibold text-brand-teal">{item.value}</span>
+                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 5 }}>
+                  <span className="muted" style={{ fontSize: 12 }}>{item.label}</span>
+                  <span className="mono strong" style={{ fontSize: 13, color: item.color }}>{item.value}</span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${item.color} rounded-full transition-all duration-700`}
-                    style={{ width: data?.total ? `${Math.min(100, Math.round((item.value / data.total) * 100))}%` : '0%' }}
-                  />
+                <div className="meter">
+                  <span style={{ width: data?.total ? `${Math.min(100, Math.round((item.value / data.total) * 100))}%` : '0%', background: item.color }} />
                 </div>
               </div>
             ))}
@@ -424,29 +343,18 @@ export default function AnalyticsPage() {
 
       {/* Hospital Referrals */}
       {(data?.byReferral.length ?? 0) > 0 && (
-        <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col h-[320px]">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-brand-teal flex items-center gap-2">
-              <Ambulance size={16} weight="fill" /> Hospital Referrals
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Top referred facilities in period</p>
+        <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-head">
+            <div className="card-title"><Ambulance size={14} style={{ display: 'inline', marginRight: 6 }} />Hospital Referrals</div>
           </div>
-          <div className="flex-1 w-full">
+          <div style={{ flex: 1, padding: '16px 20px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data?.byReferral ?? []} margin={{ top: 0, right: 20, left: 0, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="facility"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 10 }}
-                  angle={-25}
-                  textAnchor="end"
-                  interval={0}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dx={-10} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="facility" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink-2)', fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} dx={-10} allowDecimals={false} />
                 <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
-                <Bar dataKey="count" name="Referrals" fill="#006973" radius={[4, 4, 0, 0]} barSize={32} />
+                <Bar dataKey="count" name="Referrals" fill="#005A32" radius={[4, 4, 0, 0]} barSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

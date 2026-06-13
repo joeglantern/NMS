@@ -81,7 +81,7 @@ export default function PartnerCaseDetailPage() {
   const canAccept = incident.status === 'SUBMITTED' || incident.status === 'DRAFT';
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-[960px] mx-auto w-full">
+    <div className="col" style={{ gap: 20 }}>
 
       {/* Header */}
       <div className="flex items-center gap-3 bg-white p-5 rounded-xl border border-surface-border shadow-sm">

@@ -6,31 +6,32 @@ export default {
     extend: {
       colors: {
         brand: {
-          green: '#88c241',
-          sidebar: '#233c46',
-          teal: '#273238',
+          green: '#005A32',
+          sidebar: '#06231A',
+          teal: '#15211B',
         },
         surface: {
-          page: '#acb0b1',
+          page: '#F4F7F5',
           card: '#ffffff',
-          border: '#d1d5d6',
+          border: '#E3E8E5',
         },
         slate: {
-          text: '#6f7a7f',
+          text: '#6B7670',
         },
         status: {
-          danger: '#f83f37',
-          warning: '#f5a623',
-          success: '#3ec28f',
-          info: '#3b82f6',
+          danger: '#D62828',
+          warning: '#B7791F',
+          success: '#169A5B',
+          info: '#2563EB',
         },
       },
       fontFamily: {
-        sans: ['Nunito', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'monospace'],
       },
       borderRadius: {
-        DEFAULT: '4px',
-        lg: '8px',
+        DEFAULT: '6px',
+        lg: '10px',
         full: '9999px',
       },
     },

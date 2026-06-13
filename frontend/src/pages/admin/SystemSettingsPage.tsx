@@ -91,7 +91,7 @@ export default function SystemSettingsPage() {
   const maintenanceMode = health?.maintenanceMode ?? false;
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto w-full flex flex-col gap-6">
+    <div className="col" style={{ gap: 20 }}>
       <div className="mb-4">
         <h2 className="font-sans text-[32px] font-bold text-brand-teal">System Configuration</h2>
         <p className="font-sans text-base text-slate-text mt-1">Manage global platform behaviors and integration hooks.</p>
