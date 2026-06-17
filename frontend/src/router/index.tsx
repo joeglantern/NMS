@@ -14,6 +14,7 @@ import SystemSettingsPage from '../pages/admin/SystemSettingsPage';
 import AnalyticsPage from '../pages/admin/AnalyticsPage';
 import PartnerDashboardPage from '../pages/partner/PartnerDashboardPage';
 import PartnerCaseDetailPage from '../pages/partner/PartnerCaseDetailPage';
+import FacilitiesPage from '../pages/admin/FacilitiesPage';
 
 // Placeholder components for unimplemented pages
 const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-danger text-center">Unauthorized Access</div>;
@@ -40,6 +41,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
             <UserManagementPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'admin/facilities',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <FacilitiesPage />
           </RoleGuard>
         ),
       },
