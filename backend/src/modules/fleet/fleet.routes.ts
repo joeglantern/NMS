@@ -44,6 +44,32 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   /**
+   * GET /fleet/vehicles
+   * Agency vehicles available for crew check-in (mobile responder app).
+   */
+  app.get(
+    '/vehicles',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
+    async (request, reply) => {
+      const vehicles = await fleetService.listAgencyVehicles(request.user.agencyId);
+      return reply.send({ ok: true, data: vehicles });
+    }
+  );
+
+  /**
+   * GET /fleet/my-checkin
+   * Returns the vehicle this responder is currently checked in to.
+   */
+  app.get(
+    '/my-checkin',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
+    async (request, reply) => {
+      const vehicle = await fleetService.getMyCheckIn(request.user.userId, request.user.role);
+      return reply.send({ ok: true, data: vehicle });
+    }
+  );
+
+  /**
    * POST /fleet/:vehicleId/checkin
    * Driver/EMT/Nurse checks in to a vehicle at shift start.
    * Auto-clears any previous vehicle assignment for this user.
