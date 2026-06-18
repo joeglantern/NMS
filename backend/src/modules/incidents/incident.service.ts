@@ -573,18 +573,21 @@ export class IncidentService {
   }
 
   async createNatureOption(nature: string, detail?: string): Promise<void> {
-    // Ensure top-level nature exists
-    await this.app.prisma.incidentNatureOption.upsert({
-      where: { nature_detail: { nature, detail: null as any } },
-      create: { nature, detail: null },
-      update: {},
+    // upsert can't match NULL in a unique index (NULL != NULL in Postgres),
+    // so use findFirst + create for the top-level nature row
+    const topExists = await this.app.prisma.incidentNatureOption.findFirst({
+      where: { nature, detail: null },
     });
+    if (!topExists) {
+      await this.app.prisma.incidentNatureOption.create({ data: { nature, detail: null } });
+    }
     if (detail) {
-      await this.app.prisma.incidentNatureOption.upsert({
-        where: { nature_detail: { nature, detail } },
-        create: { nature, detail },
-        update: {},
+      const detailExists = await this.app.prisma.incidentNatureOption.findFirst({
+        where: { nature, detail },
       });
+      if (!detailExists) {
+        await this.app.prisma.incidentNatureOption.create({ data: { nature, detail } });
+      }
     }
   }
 }
