@@ -341,7 +341,7 @@ export default function Map({
           const status = getVehicleTrackingStatus(v);
           return (
             <Marker
-              key={v.vehicleId}
+              key={`${v.vehicleId}-${status}`}
               position={[v.lat, v.lng]}
               icon={createVehicleIcon(v.heading, status, v.speed)}
               eventHandlers={{
