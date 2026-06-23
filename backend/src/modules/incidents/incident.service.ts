@@ -59,6 +59,9 @@ export class IncidentService {
       alertNatureDetail?: string;
       originOfAlert?: string;
       placeOfReferral?: string;
+      ambulanceUsed?: string;
+      targetFacilityId?: string;
+      surveillanceNote?: string;
     }
   ) {
     const caseNumber = this.generateCaseNumber();
@@ -94,6 +97,9 @@ export class IncidentService {
         alertNatureDetail: data.alertNatureDetail,
         originOfAlert: data.originOfAlert,
         placeOfReferral: data.placeOfReferral,
+        ambulanceUsed: data.ambulanceUsed,
+        targetFacilityId: data.targetFacilityId,
+        surveillanceNote: data.surveillanceNote,
         assignedAgencyId: user.agencyId,
         watcherId: user.userId,
       },

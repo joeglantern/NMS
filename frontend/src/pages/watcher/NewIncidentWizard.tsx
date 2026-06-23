@@ -1,15 +1,14 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   CheckCircle, MapPin, PaperPlaneRight, ClipboardText,
   X, Phone, User, WarningCircle, FirstAid, ListChecks, XCircle,
-  ArrowRight, ArrowLeft, PencilSimple,
+  ArrowRight, ArrowLeft, PencilSimple, Eye,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
 import { useNotificationStore } from '../../stores/notificationStore';
-import CreatableCombobox from '../../components/shared/CreatableCombobox';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -197,6 +196,9 @@ type FormState = {
   watcherComments: string;
   preHospitalManagement: string;
   placeOfReferral: string;
+  ambulanceUsed: string;
+  targetFacilityId: string;
+  facilityChangeReason: string;
 };
 
 const defaultForm: FormState = {
@@ -222,6 +224,9 @@ const defaultForm: FormState = {
   watcherComments: '',
   preHospitalManagement: '',
   placeOfReferral: '',
+  ambulanceUsed: '',
+  targetFacilityId: '',
+  facilityChangeReason: '',
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -231,53 +236,66 @@ export default function NewIncidentWizard() {
   const location = useLocation();
   const { addNotification } = useNotificationStore();
 
-  const submitted    = (location.state as any)?.submitted;
+  const submitted     = (location.state as any)?.submitted;
   const submittedCase = (location.state as any)?.caseNumber;
-  const ended        = (location.state as any)?.ended;
+  const ended         = (location.state as any)?.ended;
+  const surveillance  = (location.state as any)?.surveillance;
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [suggestions, setSuggestions]           = useState<Array<{ display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([]);
   const [showSuggestions, setShowSuggestions]   = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
-  const [showEndReason, setShowEndReason]       = useState(false);
-  const [endReason, setEndReason]               = useState('');
+  const [showEndReason, setShowEndReason]         = useState(false);
+  const [endReason, setEndReason]                 = useState('');
+  const [showSurveillance, setShowSurveillance]   = useState(false);
+  const [surveillanceNote, setSurveillanceNote]   = useState('');
+  const [originalFacilityId, setOriginalFacilityId] = useState('');
 
   const set = (updates: Partial<FormState>) => setForm(prev => ({ ...prev, ...updates }));
 
-  // ── Nature options from DB ─────────────────────────────────────────────────
-  const queryClient = useQueryClient();
-  const { data: natureOptions = [] } = useQuery({
-    queryKey: ['incident-nature-options'],
+  const handleFacilityChange = (newId: string) => {
+    if (!originalFacilityId && newId) setOriginalFacilityId(newId);
+    set({ targetFacilityId: newId, facilityChangeReason: '' });
+  };
+
+  const facilityWasChanged = !!originalFacilityId && !!form.targetFacilityId && form.targetFacilityId !== originalFacilityId;
+
+  // ── Facilities list ────────────────────────────────────────────────────────
+  const { data: facilities = [] } = useQuery<Array<{ id: string; name: string; type: string; subCounty: string }>>({
+    queryKey: ['facilities-active'],
     queryFn: async () => {
-      const res = await api.get('/incidents/nature-options');
-      return res.data.data as Array<{ nature: string; details: string[] }>;
+      const res = await api.get('/incidents/facilities');
+      return res.data.data ?? [];
     },
-    staleTime: 5 * 60_000,
+    staleTime: 10 * 60_000,
   });
 
-  const natureList = natureOptions.map(n => n.nature);
-  const detailsForNature = (nature: string) =>
-    natureOptions.find(n => n.nature === nature)?.details ?? [];
-
-  async function addNature(nature: string) {
-    await api.post('/incidents/nature-options', { nature });
-    queryClient.invalidateQueries({ queryKey: ['incident-nature-options'] });
-  }
-
-  async function addDetail(nature: string, detail: string) {
-    await api.post('/incidents/nature-options', { nature, detail });
-    queryClient.invalidateQueries({ queryKey: ['incident-nature-options'] });
-  }
+  // ── Nature of alert options (fixed list) ──────────────────────────────────
+  const ALERT_NATURES = [
+    'Maternity (maternal & neonatal disorders)',
+    'Other gynecological disorders',
+    'Illnesses (medical & surgical)',
+    'Accidents',
+    'Violence Complaint and compliment',
+    'General inquiry',
+    'Others',
+  ];
 
   // ── Step validation ────────────────────────────────────────────────────────
-  const canGoToStep2 = !!form.alertMode && !!form.chiefComplaint.trim();
+  const canGoToStep2 = !!form.alertAt && !!form.alertMode && !!form.chiefComplaint.trim()
+    && !!form.alertNature && !!form.placeOfReferral.trim() && !!form.ambulanceUsed.trim();
   const canGoToStep3 = !!form.locationName.trim() && !!form.subCounty;
-  const canSubmit    = canGoToStep2 && canGoToStep3;
+  const canSubmit    = canGoToStep2 && canGoToStep3
+    && (!facilityWasChanged || !!form.facilityChangeReason.trim());
 
   const step1Missing = [
-    !form.alertMode      && 'alert mode',
-    !form.chiefComplaint && 'chief complaint',
+    !form.alertAt          && 'date & time',
+    !form.alertMode        && 'alert mode',
+    !form.alertNature      && 'nature of alert',
+    !form.chiefComplaint   && 'chief complaint',
+    !form.placeOfReferral  && 'place of referral',
+    !form.ambulanceUsed    && 'ambulance used',
   ].filter(Boolean) as string[];
 
   const step2Missing = [
@@ -370,6 +388,8 @@ export default function NewIncidentWizard() {
     watcherComments:       form.watcherComments || undefined,
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
+    ambulanceUsed:         form.ambulanceUsed || undefined,
+    targetFacilityId:      form.targetFacilityId || undefined,
   });
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -408,19 +428,39 @@ export default function NewIncidentWizard() {
     },
   });
 
+  const surveillanceMutation = useMutation({
+    mutationFn: () => api.post('/incidents', { ...buildPayload(), surveillanceNote }),
+    onSuccess: (res) => {
+      const caseNumber = res?.data?.data?.caseNumber ?? '';
+      navigate('/watcher/new-incident', { state: { submitted: true, caseNumber, surveillance: true } });
+    },
+    onError: (err: any) => {
+      addNotification({
+        type: 'error',
+        title: 'Surveillance Alert Failed',
+        message: err?.response?.data?.message || 'Could not send surveillance alert.',
+      });
+    },
+  });
+
   // ── Success screen ─────────────────────────────────────────────────────────
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 gap-6 text-center">
-        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${ended ? 'bg-status-danger/10' : 'bg-brand-green/10'}`}>
-          <CheckCircle size={48} weight="fill" className={ended ? 'text-status-danger' : 'text-brand-green'} />
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${ended ? 'bg-status-danger/10' : surveillance ? 'bg-amber-500/10' : 'bg-brand-green/10'}`}>
+          {surveillance
+            ? <Eye size={48} weight="fill" className="text-amber-500" />
+            : <CheckCircle size={48} weight="fill" className={ended ? 'text-status-danger' : 'text-brand-green'} />
+          }
         </div>
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: 'var(--ink)' }}>{ended ? 'Case Ended' : 'Alert Submitted'}</h2>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--ink)' }}>
+            {ended ? 'Case Ended' : surveillance ? 'Surveillance Alert Sent' : 'Alert Submitted'}
+          </h2>
           {submittedCase && (
             <p className="text-sm mt-2" style={{ color: 'var(--muted)' }}>
               Case <span className="font-bold text-brand-green">#{submittedCase}</span>{' '}
-              {ended ? 'has been recorded and closed.' : 'is now in the dispatch queue.'}
+              {ended ? 'has been recorded and closed.' : surveillance ? 'has been flagged for surveillance.' : 'is now in the dispatch queue.'}
             </p>
           )}
         </div>
@@ -533,9 +573,15 @@ export default function NewIncidentWizard() {
                 <div className="grid grid-cols-2 gap-3">
                   <Field>
                     <Label>Age</Label>
-                    <input type="number" min="0" max="120" inputMode="numeric" placeholder="e.g. 34" className={inputCls} value={form.patientAge}
-                      onKeyDown={e => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
-                      onChange={e => set({ patientAge: e.target.value.replace(/[^0-9]/g, '') })} />
+                    <select className={selectCls} value={form.patientAge} onChange={e => set({ patientAge: e.target.value })}>
+                      <option value="">Select age...</option>
+                      <option value="Below 1 Month">Below 1 Month</option>
+                      <option value="1-6 Months">1-6 Months</option>
+                      <option value="6-13 Months">6-13 Months</option>
+                      {Array.from({ length: 149 }, (_, i) => i + 2).map(yr => (
+                        <option key={yr} value={String(yr)}>{yr}</option>
+                      ))}
+                    </select>
                   </Field>
                   <Field>
                     <Label>Sex</Label>
@@ -604,24 +650,27 @@ export default function NewIncidentWizard() {
               <SectionCard title="Incident Details" icon={FirstAid}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field>
-                    <Label>Nature of Alert</Label>
-                    <CreatableCombobox
-                      options={natureList}
+                    <Label required>Nature of Alert</Label>
+                    <select
+                      className={selectCls}
                       value={form.alertNature}
-                      onChange={v => set({ alertNature: v, alertNatureDetail: '' })}
-                      onCreateOption={addNature}
-                      placeholder="Select or type new…"
-                    />
+                      onChange={e => set({ alertNature: e.target.value, alertNatureDetail: '' })}
+                    >
+                      <option value="">Select nature…</option>
+                      {ALERT_NATURES.map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
                   </Field>
                   <Field>
-                    <Label>Specify Nature</Label>
-                    <CreatableCombobox
-                      options={detailsForNature(form.alertNature)}
-                      value={form.alertNatureDetail}
-                      onChange={v => set({ alertNatureDetail: v })}
-                      onCreateOption={form.alertNature ? (detail) => addDetail(form.alertNature, detail) : undefined}
-                      placeholder={form.alertNature ? 'Select or type new…' : 'Pick nature first'}
+                    <Label>Specific Nature</Label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder={form.alertNature ? 'Describe further…' : 'Pick nature first'}
                       disabled={!form.alertNature}
+                      value={form.alertNatureDetail}
+                      onChange={e => set({ alertNatureDetail: e.target.value })}
                     />
                   </Field>
                 </div>
@@ -661,7 +710,7 @@ export default function NewIncidentWizard() {
                 </Field>
 
                 <Field>
-                  <Label>Place of Referral</Label>
+                  <Label required>Place of Referral</Label>
                   <input
                     type="text"
                     placeholder="e.g. Kenyatta National Hospital"
@@ -670,6 +719,44 @@ export default function NewIncidentWizard() {
                     onChange={e => set({ placeOfReferral: e.target.value })}
                   />
                 </Field>
+
+                <Field>
+                  <Label required>Ambulance Used</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. KCB 001A"
+                    className={inputCls}
+                    value={form.ambulanceUsed}
+                    onChange={e => set({ ambulanceUsed: e.target.value })}
+                  />
+                </Field>
+
+                <Field>
+                  <Label>Destination Facility</Label>
+                  <select
+                    className={selectCls}
+                    value={form.targetFacilityId}
+                    onChange={e => handleFacilityChange(e.target.value)}
+                  >
+                    <option value="">Select facility…</option>
+                    {facilities.map(f => (
+                      <option key={f.id} value={f.id}>{f.name} — {f.type}</option>
+                    ))}
+                  </select>
+                </Field>
+
+                {facilityWasChanged && (
+                  <Field>
+                    <Label required>Reason for Facility Change</Label>
+                    <textarea
+                      rows={2}
+                      placeholder="Why was the destination facility changed?"
+                      className={textareaCls}
+                      value={form.facilityChangeReason}
+                      onChange={e => set({ facilityChangeReason: e.target.value })}
+                    />
+                  </Field>
+                )}
               </SectionCard>
             </div>
           </div>
@@ -835,6 +922,49 @@ export default function NewIncidentWizard() {
         )}
       </div>
 
+      {/* ── Alert Surveillance panel (Step 3 only) ── */}
+      {showSurveillance && step === 3 && (
+        <div
+          className="border-t-2 border-amber-500/30 px-6 py-4 shrink-0"
+          style={{ background: 'var(--surface)' }}
+        >
+          <div className="flex items-start gap-3 max-w-2xl mx-auto">
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <Eye size={14} weight="fill" /> Surveillance Alert Notes
+              </p>
+              <textarea
+                autoFocus
+                rows={2}
+                placeholder="Describe the surveillance concern (e.g. suspected outbreak, unusual disease pattern)…"
+                className={`${textareaCls} border-amber-500/40 focus:ring-amber-500 focus:border-amber-500`}
+                value={surveillanceNote}
+                onChange={e => setSurveillanceNote(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2 pt-6">
+              <button
+                type="button"
+                onClick={() => { setShowSurveillance(false); setSurveillanceNote(''); }}
+                className="btn btn-ghost btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => surveillanceMutation.mutate()}
+                disabled={surveillanceMutation.isPending}
+                className="btn btn-sm flex items-center gap-1.5 text-amber-700 border-amber-400 hover:bg-amber-50"
+                style={{ borderWidth: '1px', borderStyle: 'solid' }}
+              >
+                <Eye size={14} weight="fill" />
+                {surveillanceMutation.isPending ? 'Sending…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── End Case reason panel (Step 3 only) ── */}
       {showEndReason && step === 3 && (
         <div
@@ -944,12 +1074,22 @@ export default function NewIncidentWizard() {
             <>
               <button
                 type="button"
-                onClick={() => { setShowEndReason(v => !v); setEndReason(''); }}
+                onClick={() => { setShowEndReason(v => !v); setShowSurveillance(false); setEndReason(''); }}
                 disabled={!canSubmit}
                 className="btn btn-ghost flex items-center gap-2 border-status-danger/50 text-status-danger hover:bg-[var(--red-soft)] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <XCircle size={16} weight="fill" />
                 End Case
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowSurveillance(v => !v); setShowEndReason(false); setSurveillanceNote(''); }}
+                disabled={!canSubmit}
+                className="btn btn-ghost flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ borderColor: 'rgba(217,119,6,0.5)', color: 'rgb(180,100,0)' }}
+              >
+                <Eye size={16} weight="fill" />
+                Alert Surveillance
               </button>
               <button
                 type="button"

@@ -157,6 +157,8 @@ model Incident {
   originOfAlert    String? @map("origin_of_alert")
   nextOfKinPhone   String? @map("next_of_kin_phone")
   placeOfReferral  String? @map("place_of_referral")
+  ambulanceUsed    String? @map("ambulance_used")
+  surveillanceNote String? @map("surveillance_note") @db.Text
 
   // Partner update fields
   partnerNotes String? @map("partner_notes") @db.Text

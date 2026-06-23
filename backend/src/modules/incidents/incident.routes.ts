@@ -29,6 +29,9 @@ const createIncidentSchema = z.object({
   alertNatureDetail: z.string().optional(),
   originOfAlert: z.string().optional(),
   placeOfReferral: z.string().optional(),
+  ambulanceUsed: z.string().optional(),
+  targetFacilityId: z.string().optional(),
+  surveillanceNote: z.string().optional(),
 });
 
 const updateIncidentSchema = z.object({
@@ -88,6 +91,18 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
       return reply.status(201).send({ ok: true, data: incident });
     }
   );
+
+  /**
+   * GET /incidents/facilities — list active facilities (accessible to all authenticated roles)
+   */
+  app.get('/facilities', async (_request, reply) => {
+    const facilities = await app.prisma.facility.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, type: true, subCounty: true, kephLevel: true },
+      orderBy: { name: 'asc' },
+    });
+    return reply.send({ ok: true, data: facilities });
+  });
 
   /**
    * GET /incidents
