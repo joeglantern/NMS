@@ -54,29 +54,67 @@ function createVehicleIcon(heading: number, status: VehicleTrackingStatus, speed
   const p = STATUS_PALETTE[status];
   const isMoving = status === 'ready';
   const pulse = isMoving
-    ? `<circle cx="22" cy="22" r="15" fill="none" stroke="${p.light}" stroke-width="2">
-         <animate attributeName="r" values="14;20;14" dur="2s" repeatCount="indefinite"/>
+    ? `<circle cx="37" cy="37" r="20" fill="none" stroke="${p.light}" stroke-width="2">
+         <animate attributeName="r" values="18;26;18" dur="2s" repeatCount="indefinite"/>
          <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
        </circle>` : '';
   const badge = speed > 2
-    ? `<circle cx="37" cy="9" r="8" fill="${p.bg}" stroke="white" stroke-width="1.5"/>
-       <text x="37" y="13" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="7" font-weight="800">${Math.round(speed)}</text>` : '';
+    ? `<circle cx="62" cy="8" r="9" fill="${p.bg}" stroke="white" stroke-width="1.5"/>
+       <text x="62" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="7" font-weight="800">${Math.round(speed)}</text>` : '';
+
   return L.divIcon({
-    html: `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" overflow="visible">
+   html: `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="31" viewBox="0 0 74 44" overflow="visible">
       ${pulse}
-      <circle cx="22" cy="22" r="16" fill="${p.ring}"/>
-      <g transform="rotate(${heading},22,22)">
-        <rect x="15" y="10" width="14" height="24" rx="4" fill="${p.light}" stroke="${p.bg}" stroke-width="1.5"/>
-        <rect x="16.5" y="11.5" width="11" height="6" rx="1.5" fill="rgba(255,255,255,0.75)"/>
-        <rect x="16.5" y="25" width="11" height="5" rx="1.5" fill="rgba(255,255,255,0.28)"/>
-        <polygon points="22,6 27,11 17,11" fill="${p.bg}"/>
-      </g>
+
+      <!-- Ambulance body -->
+      <rect x="4" y="10" width="46" height="23" rx="3" fill="${p.light}" stroke="${p.bg}" stroke-width="1.5"/>
+
+      <!-- Cab -->
+      <path d="M50,33 L50,17 Q50,10 57,10 L64,10 Q70,10 70,17 L70,33 Z" fill="${p.light}" stroke="${p.bg}" stroke-width="1.5"/>
+
+      <!-- Cab windshield -->
+      <path d="M53,31 L53,18 Q53,13 59,13 L68,13 L68,31 Z" fill="rgba(200,240,255,0.75)" stroke="${p.bg}" stroke-width="1"/>
+
+      <!-- Roof siren bar -->
+      <rect x="14" y="5" width="28" height="6" rx="2" fill="${p.bg}"/>
+      <rect x="16" y="6" width="7" height="4" rx="1" fill="#ef4444"/>
+      <rect x="25" y="6" width="7" height="4" rx="1" fill="#2563eb"/>
+
+      <!-- Red cross panel -->
+      <rect x="8" y="13" width="20" height="15" rx="2" fill="white" opacity="0.92"/>
+      <rect x="15" y="14" width="4" height="13" rx="0.5" fill="#e11d48"/>
+      <rect x="9" y="18" width="18" height="4" rx="0.5" fill="#e11d48"/>
+
+      <!-- Undercarriage -->
+      <rect x="4" y="31" width="66" height="3" rx="1" fill="${p.bg}" opacity="0.7"/>
+
+      <!-- Rear door line -->
+      <line x1="6" y1="12" x2="6" y2="31" stroke="${p.bg}" stroke-width="1.2"/>
+
+      <!-- Front bumper -->
+      <rect x="68" y="26" width="4" height="9" rx="2" fill="${p.bg}"/>
+
+      <!-- Headlight -->
+      <rect x="68" y="18" width="3" height="5" rx="1.5" fill="#fef08a"/>
+
+      <!-- Rear light -->
+      <rect x="4" y="18" width="3" height="5" rx="1.5" fill="#fca5a5"/>
+
+      <!-- Wheels -->
+      <circle cx="18" cy="35" r="7" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+      <circle cx="18" cy="35" r="3.5" fill="#475569"/>
+      <circle cx="18" cy="35" r="1.5" fill="#94a3b8"/>
+
+      <circle cx="55" cy="35" r="7" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+      <circle cx="55" cy="35" r="3.5" fill="#475569"/>
+      <circle cx="55" cy="35" r="1.5" fill="#94a3b8"/>
+
       ${badge}
     </svg>`,
     className: '',
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -26],
+    iconSize: [52, 31],
+    iconAnchor: [26, 25],
+    popupAnchor: [0, -25],
   });
 }
 

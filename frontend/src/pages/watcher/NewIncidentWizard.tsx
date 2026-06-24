@@ -272,15 +272,21 @@ export default function NewIncidentWizard() {
   });
 
   // ── Nature of alert options (fixed list) ──────────────────────────────────
-  const ALERT_NATURES = [
-    'Maternity (maternal & neonatal disorders)',
-    'Other gynecological disorders',
-    'Illnesses (medical & surgical)',
-    'Accidents',
-    'Violence Complaint and compliment',
-    'General inquiry',
-    'Others',
-  ];
+  // ── Nature of alert options (from DB) ──────────────────────────────────────
+const { data: natureOptions = [] } = useQuery<{ id: string; nature: string; detail: string | null }[]>({
+  queryKey: ['nature-options'],
+  queryFn: async () => {
+    const res = await api.get('/admin/nature-options');
+    return res.data.data;
+  },
+});
+
+const uniqueNatures = [...new Set(natureOptions.map(o => o.nature))];
+const detailsForNature = natureOptions
+  .filter(o => o.nature === form.alertNature && o.detail)
+  .map(o => o.detail as string);
+
+
 
   // ── Step validation ────────────────────────────────────────────────────────
   const canGoToStep2 = !!form.alertAt && !!form.alertMode && !!form.chiefComplaint.trim()
@@ -649,6 +655,7 @@ export default function NewIncidentWizard() {
             <div className="space-y-4">
               <SectionCard title="Incident Details" icon={FirstAid}>
                 <div className="grid grid-cols-2 gap-3">
+                  {/* Nature of Alert */}
                   <Field>
                     <Label required>Nature of Alert</Label>
                     <select
@@ -657,21 +664,37 @@ export default function NewIncidentWizard() {
                       onChange={e => set({ alertNature: e.target.value, alertNatureDetail: '' })}
                     >
                       <option value="">Select nature…</option>
-                      {ALERT_NATURES.map(n => (
+                      {uniqueNatures.map(n => (
                         <option key={n} value={n}>{n}</option>
                       ))}
                     </select>
                   </Field>
+
+                  {/* Specific Nature — dropdown if DB has details, else free text */}
                   <Field>
                     <Label>Specific Nature</Label>
-                    <input
-                      type="text"
-                      className={inputCls}
-                      placeholder={form.alertNature ? 'Describe further…' : 'Pick nature first'}
-                      disabled={!form.alertNature}
-                      value={form.alertNatureDetail}
-                      onChange={e => set({ alertNatureDetail: e.target.value })}
-                    />
+                    {detailsForNature.length > 0 ? (
+                      <select
+                        className={selectCls}
+                        value={form.alertNatureDetail}
+                        disabled={!form.alertNature}
+                        onChange={e => set({ alertNatureDetail: e.target.value })}
+                      >
+                        <option value="">Select specific…</option>
+                        {detailsForNature.map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className={inputCls}
+                        placeholder={form.alertNature ? 'Describe further…' : 'Pick nature first'}
+                        disabled={!form.alertNature}
+                        value={form.alertNatureDetail}
+                        onChange={e => set({ alertNatureDetail: e.target.value })}
+                      />
+                    )}
                   </Field>
                 </div>
 

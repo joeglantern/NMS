@@ -15,6 +15,7 @@ import AnalyticsPage from '../pages/admin/AnalyticsPage';
 import PartnerDashboardPage from '../pages/partner/PartnerDashboardPage';
 import PartnerCaseDetailPage from '../pages/partner/PartnerCaseDetailPage';
 import FacilitiesPage from '../pages/admin/FacilitiesPage';
+import NatureOptionsPage from '../pages/admin/NatureOptionsPage';
 
 // Placeholder components for unimplemented pages
 const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-danger text-center">Unauthorized Access</div>;
@@ -52,6 +53,15 @@ export const router = createBrowserRouter([
           </RoleGuard>
         ),
       },
+      {
+        path: 'admin/nature-options',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <NatureOptionsPage />
+          </RoleGuard>
+        ),
+      },
+      
       {
         path: 'admin/settings',
         element: (

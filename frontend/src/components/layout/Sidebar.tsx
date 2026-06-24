@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   List,
   Hospital,
+  Tag,
 } from '@phosphor-icons/react';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 import { Link, useLocation } from 'react-router-dom';
@@ -28,6 +29,7 @@ const navItems = [
   { label: 'Call Logs', path: '/call-logs', Icon: Phone, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Personnel', path: '/admin/users', Icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Analytics', path: '/admin/analytics', Icon: ChartLineUp, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER', 'PARTNER'] },
   { label: 'System Settings', path: '/admin/settings', Icon: Gear, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'My Alerts', path: '/watcher', Icon: ClipboardText, roles: ['WATCHER'] },
@@ -102,7 +104,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         </div>
       </aside>
 
-      {/* Mobile bottom nav (CSS hides sidebar + shows this at ≤859px) */}
+      {/* Mobile bottom nav */}
       <nav className="bottomnav">
         {visibleItems.slice(0, 5).map((item) => {
           const isActive = location.pathname.startsWith(item.path);
