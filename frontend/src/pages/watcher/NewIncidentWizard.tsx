@@ -196,9 +196,6 @@ type FormState = {
   watcherComments: string;
   preHospitalManagement: string;
   placeOfReferral: string;
-  ambulanceUsed: string;
-  targetFacilityId: string;
-  facilityChangeReason: string;
 };
 
 const defaultForm: FormState = {
@@ -224,9 +221,6 @@ const defaultForm: FormState = {
   watcherComments: '',
   preHospitalManagement: '',
   placeOfReferral: '',
-  ambulanceUsed: '',
-  targetFacilityId: '',
-  facilityChangeReason: '',
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -250,26 +244,7 @@ export default function NewIncidentWizard() {
   const [endReason, setEndReason]                 = useState('');
   const [showSurveillance, setShowSurveillance]   = useState(false);
   const [surveillanceNote, setSurveillanceNote]   = useState('');
-  const [originalFacilityId, setOriginalFacilityId] = useState('');
-
   const set = (updates: Partial<FormState>) => setForm(prev => ({ ...prev, ...updates }));
-
-  const handleFacilityChange = (newId: string) => {
-    if (!originalFacilityId && newId) setOriginalFacilityId(newId);
-    set({ targetFacilityId: newId, facilityChangeReason: '' });
-  };
-
-  const facilityWasChanged = !!originalFacilityId && !!form.targetFacilityId && form.targetFacilityId !== originalFacilityId;
-
-  // ── Facilities list ────────────────────────────────────────────────────────
-  const { data: facilities = [] } = useQuery<Array<{ id: string; name: string; type: string; subCounty: string }>>({
-    queryKey: ['facilities-active'],
-    queryFn: async () => {
-      const res = await api.get('/incidents/facilities');
-      return res.data.data ?? [];
-    },
-    staleTime: 10 * 60_000,
-  });
 
   // ── Nature of alert options (fixed list) ──────────────────────────────────
   // ── Nature of alert options (from DB) ──────────────────────────────────────
@@ -290,18 +265,15 @@ const detailsForNature = natureOptions
 
   // ── Step validation ────────────────────────────────────────────────────────
   const canGoToStep2 = !!form.alertAt && !!form.alertMode && !!form.chiefComplaint.trim()
-    && !!form.alertNature && !!form.placeOfReferral.trim() && !!form.ambulanceUsed.trim();
+    && !!form.alertNature;
   const canGoToStep3 = !!form.locationName.trim() && !!form.subCounty;
-  const canSubmit    = canGoToStep2 && canGoToStep3
-    && (!facilityWasChanged || !!form.facilityChangeReason.trim());
+  const canSubmit    = canGoToStep2 && canGoToStep3;
 
   const step1Missing = [
     !form.alertAt          && 'date & time',
     !form.alertMode        && 'alert mode',
     !form.alertNature      && 'nature of alert',
     !form.chiefComplaint   && 'chief complaint',
-    !form.placeOfReferral  && 'place of referral',
-    !form.ambulanceUsed    && 'ambulance used',
   ].filter(Boolean) as string[];
 
   const step2Missing = [
@@ -394,8 +366,6 @@ const detailsForNature = natureOptions
     watcherComments:       form.watcherComments || undefined,
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
-    ambulanceUsed:         form.ambulanceUsed || undefined,
-    targetFacilityId:      form.targetFacilityId || undefined,
   });
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -732,54 +702,6 @@ const detailsForNature = natureOptions
                   />
                 </Field>
 
-                <Field>
-                  <Label required>Place of Referral</Label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Kenyatta National Hospital"
-                    className={inputCls}
-                    value={form.placeOfReferral}
-                    onChange={e => set({ placeOfReferral: e.target.value })}
-                  />
-                </Field>
-
-                <Field>
-                  <Label required>Ambulance Used</Label>
-                  <input
-                    type="text"
-                    placeholder="e.g. KCB 001A"
-                    className={inputCls}
-                    value={form.ambulanceUsed}
-                    onChange={e => set({ ambulanceUsed: e.target.value })}
-                  />
-                </Field>
-
-                <Field>
-                  <Label>Destination Facility</Label>
-                  <select
-                    className={selectCls}
-                    value={form.targetFacilityId}
-                    onChange={e => handleFacilityChange(e.target.value)}
-                  >
-                    <option value="">Select facility…</option>
-                    {facilities.map(f => (
-                      <option key={f.id} value={f.id}>{f.name} — {f.type}</option>
-                    ))}
-                  </select>
-                </Field>
-
-                {facilityWasChanged && (
-                  <Field>
-                    <Label required>Reason for Facility Change</Label>
-                    <textarea
-                      rows={2}
-                      placeholder="Why was the destination facility changed?"
-                      className={textareaCls}
-                      value={form.facilityChangeReason}
-                      onChange={e => set({ facilityChangeReason: e.target.value })}
-                    />
-                  </Field>
-                )}
               </SectionCard>
             </div>
           </div>
