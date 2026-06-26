@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Plus, MagnifyingGlass, DotsThreeVertical,
-  Tag, Trash, PencilSimple, Check, X as XIcon,
+  Tag, Trash, X as XIcon,
 } from '@phosphor-icons/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -24,8 +24,6 @@ export default function NatureOptionsPage() {
   const [newNature, setNewNature] = useState('');
   const [newDetail, setNewDetail] = useState('');
   const [selectedNatureForDetail, setSelectedNatureForDetail] = useState('');
-  const [editTarget, setEditTarget] = useState<NatureOption | null>(null);
-  const [editValue, setEditValue] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
   const [expandedNatures, setExpandedNatures] = useState<Set<string>>(new Set());
 

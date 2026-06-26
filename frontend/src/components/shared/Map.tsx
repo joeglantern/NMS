@@ -50,7 +50,7 @@ function secsAgo(ts: string): string {
   return `${Math.round(s / 3600)}h ago`;
 }
 
-function createVehicleIcon(heading: number, status: VehicleTrackingStatus, speed: number): L.DivIcon {
+function createVehicleIcon(_heading: number, status: VehicleTrackingStatus, speed: number): L.DivIcon {
   const p = STATUS_PALETTE[status];
   const isMoving = status === 'ready';
   const pulse = isMoving

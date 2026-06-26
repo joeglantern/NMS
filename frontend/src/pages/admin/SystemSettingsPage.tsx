@@ -57,8 +57,6 @@ function NatureOptionsManager() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['nature-options'] }),
   });
 
-  const detailsForSelected = options.filter(o => o.nature === selectedNature && o.detail);
-
   return (
     <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
       <div className="p-4 border-b border-surface-border bg-slate-50 flex items-center gap-3">
