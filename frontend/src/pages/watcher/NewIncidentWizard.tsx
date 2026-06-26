@@ -246,20 +246,18 @@ export default function NewIncidentWizard() {
   const [surveillanceNote, setSurveillanceNote]   = useState('');
   const set = (updates: Partial<FormState>) => setForm(prev => ({ ...prev, ...updates }));
 
-  // ── Nature of alert options (fixed list) ──────────────────────────────────
-  // ── Nature of alert options (from DB) ──────────────────────────────────────
-const { data: natureOptions = [] } = useQuery<{ id: string; nature: string; detail: string | null }[]>({
-  queryKey: ['nature-options'],
-  queryFn: async () => {
-    const res = await api.get('/admin/nature-options');
-    return res.data.data;
-  },
-});
+  // ── Nature of alert options (accessible to all roles) ────────────────────
+  const { data: natureOptions = [] } = useQuery<{ nature: string; details: string[] }[]>({
+    queryKey: ['nature-options'],
+    queryFn: async () => {
+      const res = await api.get('/incidents/nature-options');
+      return res.data.data;
+    },
+    staleTime: 5 * 60_000,
+  });
 
-const uniqueNatures = [...new Set(natureOptions.map(o => o.nature))];
-const detailsForNature = natureOptions
-  .filter(o => o.nature === form.alertNature && o.detail)
-  .map(o => o.detail as string);
+  const uniqueNatures = natureOptions.map(o => o.nature);
+  const detailsForNature = natureOptions.find(o => o.nature === form.alertNature)?.details ?? [];
 
 
 
