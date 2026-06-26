@@ -229,8 +229,8 @@ export class TaskService {
     // Broadcast update to the crew and dispatchers
     let updateRoom = this.app.io
       .to(`user:${task.driverId}`)
-      .to(`user:${task.emtId}`)
       .to(`role:${Role.DISPATCHER}`);
+    if (task.emtId) updateRoom = updateRoom.to(`user:${task.emtId}`);
     if (task.nurseId) updateRoom = updateRoom.to(`user:${task.nurseId}`);
     updateRoom.emit('task:updated', updatedTask);
 
