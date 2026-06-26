@@ -186,6 +186,33 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ ok: true, data: facility });
   });
 
+  // ── Nature Options (admin CRUD) ────────────────────────────────────────────
+
+  app.get('/nature-options', async (_request, reply) => {
+    const options = await app.prisma.incidentNatureOption.findMany({
+      orderBy: [{ nature: 'asc' }, { detail: 'asc' }],
+    });
+    return reply.send({ ok: true, data: options });
+  });
+
+  app.post<{ Body: { nature: string; detail?: string } }>('/nature-options', async (request, reply) => {
+    const { nature, detail } = request.body;
+    if (!nature?.trim()) throw new Error('Nature is required');
+    const existing = await app.prisma.incidentNatureOption.findFirst({
+      where: { nature, detail: detail ?? null },
+    });
+    if (existing) return reply.send({ ok: true, data: existing });
+    const option = await app.prisma.incidentNatureOption.create({
+      data: { nature, detail: detail ?? null },
+    });
+    return reply.status(201).send({ ok: true, data: option });
+  });
+
+  app.delete<{ Params: { id: string } }>('/nature-options/:id', async (request, reply) => {
+    await app.prisma.incidentNatureOption.delete({ where: { id: request.params.id } });
+    return reply.send({ ok: true });
+  });
+
   // ── System Health ──────────────────────────────────────────────────────────
 
   app.get('/system-health', async (_request, reply) => {
