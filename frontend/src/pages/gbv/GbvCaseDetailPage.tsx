@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CaretLeft, FloppyDisk, User, MapPin, Warning,
+  CaretLeft, FloppyDisk, User, Warning,
   FirstAid, Handshake, Building,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
