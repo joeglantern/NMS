@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   CheckCircle, MapPin, PaperPlaneRight, ClipboardText,
   X, Phone, User, WarningCircle, FirstAid, ListChecks, XCircle,
-  ArrowRight, ArrowLeft, PencilSimple, Eye,
+  ArrowRight, ArrowLeft, PencilSimple, Eye, ShieldWarning,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
@@ -196,6 +196,7 @@ type FormState = {
   watcherComments: string;
   preHospitalManagement: string;
   placeOfReferral: string;
+  isGbvCase: boolean;
 };
 
 const defaultForm: FormState = {
@@ -221,6 +222,7 @@ const defaultForm: FormState = {
   watcherComments: '',
   preHospitalManagement: '',
   placeOfReferral: '',
+  isGbvCase: false,
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -364,6 +366,7 @@ export default function NewIncidentWizard() {
     watcherComments:       form.watcherComments || undefined,
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
+    isGbvCase:             form.isGbvCase || undefined,
   });
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -616,6 +619,28 @@ export default function NewIncidentWizard() {
                       onChange={e => set({ massCasualtyCount: e.target.value.replace(/[^0-9]/g, '') })} />
                   </Field>
                 )}
+
+                <label
+                  className="flex items-start gap-4 p-4 border rounded-xl cursor-pointer transition-all"
+                  style={{
+                    borderColor: form.isGbvCase ? '#9333ea' : 'var(--border)',
+                    background: form.isGbvCase ? 'rgba(147,51,234,0.06)' : 'transparent',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    className="w-5 h-5 mt-0.5 shrink-0"
+                    style={{ accentColor: '#9333ea' }}
+                    checked={form.isGbvCase}
+                    onChange={e => set({ isGbvCase: e.target.checked })}
+                  />
+                  <div>
+                    <p className="font-bold text-sm flex items-center gap-1.5" style={{ color: '#7e22ce' }}>
+                      <ShieldWarning size={16} weight="fill" /> Gender-Based Violence (GBV) Case
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Flag this case for GBV handling. It will appear in the GBV Register.</p>
+                  </div>
+                </label>
               </SectionCard>
             </div>
 

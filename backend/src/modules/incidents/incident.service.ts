@@ -62,6 +62,7 @@ export class IncidentService {
       ambulanceUsed?: string;
       targetFacilityId?: string;
       surveillanceNote?: string;
+      isGbvCase?: boolean;
     }
   ) {
     const caseNumber = this.generateCaseNumber();
@@ -100,6 +101,7 @@ export class IncidentService {
         ambulanceUsed: data.ambulanceUsed,
         targetFacilityId: data.targetFacilityId,
         surveillanceNote: data.surveillanceNote,
+        isGbvCase: data.isGbvCase ?? false,
         assignedAgencyId: user.agencyId,
         watcherId: user.userId,
       },

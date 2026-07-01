@@ -32,6 +32,7 @@ const createIncidentSchema = z.object({
   ambulanceUsed: z.string().optional(),
   targetFacilityId: z.string().optional(),
   surveillanceNote: z.string().optional(),
+  isGbvCase: z.boolean().optional(),
 });
 
 const updateIncidentSchema = z.object({
