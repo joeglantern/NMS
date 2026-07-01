@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, Road } from '@phosphor-icons/react';
+import { useDirections } from '../../hooks/useDirections';
 import api from '../../api/client';
 import { Incident, Vehicle, AuditLog, CallLog } from '../../types/api';
 import EndCaseModal from '../../components/shared/EndCaseModal';
@@ -275,6 +276,19 @@ export default function IncidentDetailPage() {
     },
   });
 
+  // ── Directions — vehicle en-route to incident ─────────────────────────────
+  const dispatchedTask = incident?.tasks?.find(t => t.status === 'EN_ROUTE' || t.status === 'ACCEPTED');
+  const dispatchedVehicle = dispatchedTask ? (nearestVehiclesRaw ?? []).find(v => v.id === dispatchedTask.vehicleId) : null;
+  const vehicleOrigin = dispatchedVehicle?.lastLat && dispatchedVehicle?.lastLng
+    ? { lat: dispatchedVehicle.lastLat, lng: dispatchedVehicle.lastLng }
+    : null;
+  const incidentDest = incident?.lat && incident?.lng ? { lat: incident.lat, lng: incident.lng } : null;
+  const { result: directions, loading: directionsLoading, available: mapsAvailable } = useDirections(
+    vehicleOrigin,
+    incidentDest,
+    !!vehicleOrigin && !!incidentDest
+  );
+
   if (isLoading) return <div className="p-10 font-bold text-center text-slate-text">Loading Incident Details...</div>;
   if (!incident) return <div className="p-10 font-bold text-center text-status-danger">Incident Not Found</div>;
 
@@ -384,6 +398,44 @@ export default function IncidentDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Google Maps ETA panel — only shows when Maps key is configured + vehicle is en-route */}
+      {mapsAvailable && vehicleOrigin && (
+        <div className="bg-white border border-surface-border rounded-xl shadow-sm p-5 flex items-center gap-5">
+          <div className="w-10 h-10 rounded-full bg-brand-green/10 flex items-center justify-center flex-shrink-0">
+            <NavigationArrow size={20} className="text-brand-green" weight="fill" />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-slate-text uppercase tracking-wide mb-1">Live Route to Scene</p>
+            {directionsLoading ? (
+              <p className="text-sm text-slate-400">Calculating route…</p>
+            ) : directions ? (
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-2xl font-bold text-brand-teal">{directions.durationText}</p>
+                  <p className="text-xs text-slate-text">ETA (with traffic)</p>
+                </div>
+                <div className="text-slate-300">|</div>
+                <div>
+                  <p className="text-lg font-semibold text-slate-700">{directions.distanceText}</p>
+                  <p className="text-xs text-slate-text">Distance</p>
+                </div>
+                {directions.steps[0] && (
+                  <>
+                    <div className="text-slate-300">|</div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Road size={14} className="text-slate-400" />
+                      <span className="line-clamp-1">{directions.steps[0]}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">No route data — vehicle or incident coordinates missing.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status Timeline */}
       <div className="bg-white p-6 border border-surface-border rounded-xl shadow-sm">

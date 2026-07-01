@@ -9,6 +9,7 @@ import {
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { usePlacesAutocomplete } from '../../hooks/usePlacesAutocomplete';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -242,6 +243,7 @@ export default function NewIncidentWizard() {
   const [suggestions, setSuggestions]           = useState<Array<{ display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([]);
   const [showSuggestions, setShowSuggestions]   = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+  const places = usePlacesAutocomplete();
   const [showEndReason, setShowEndReason]         = useState(false);
   const [endReason, setEndReason]                 = useState('');
   const [showSurveillance, setShowSurveillance]   = useState(false);
@@ -300,21 +302,37 @@ export default function NewIncidentWizard() {
     return '';
   }
 
-  // ── Location autocomplete ──────────────────────────────────────────────────
+  // ── Location autocomplete — Google Places when key present, Nominatim fallback ──
   useEffect(() => {
-    if (form.locationName.length < 3) { setSuggestions([]); return; }
-    const timer = setTimeout(async () => {
-      try {
-        const res  = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.locationName + ', Nairobi, Kenya')}&limit=5&addressdetails=1`
-        );
-        const data = await res.json();
-        setSuggestions(data ?? []);
-        if (data?.length > 0) setShowSuggestions(true);
-      } catch {}
-    }, 400);
-    return () => clearTimeout(timer);
+    if (places.available) {
+      places.search(form.locationName);
+      setShowSuggestions(form.locationName.length >= 3);
+    } else {
+      if (form.locationName.length < 3) { setSuggestions([]); return; }
+      const timer = setTimeout(async () => {
+        try {
+          const res  = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.locationName + ', Nairobi, Kenya')}&limit=5&addressdetails=1`
+          );
+          const data = await res.json();
+          setSuggestions(data ?? []);
+          if (data?.length > 0) setShowSuggestions(true);
+        } catch {}
+      }, 400);
+      return () => clearTimeout(timer);
+    }
   }, [form.locationName]);
+
+  const selectGoogleSuggestion = async (placeId: string, description: string) => {
+    try {
+      const details = await places.getDetails(placeId);
+      set({ locationName: details.name || description.split(',').slice(0, 2).join(',').trim(), lat: details.lat, lng: details.lng });
+    } catch {
+      set({ locationName: description.split(',').slice(0, 2).join(',').trim() });
+    }
+    places.clear();
+    setShowSuggestions(false);
+  };
 
   const selectSuggestion = (s: { display_name: string; lat: string; lon: string; address?: Record<string, string> }) => {
     const name        = s.display_name.split(',').slice(0, 2).join(',').trim();
@@ -742,18 +760,35 @@ export default function NewIncidentWizard() {
                     placeholder="Type to search, or click the map to pin…"
                     className={`${inputCls} pr-10`}
                     value={form.locationName}
-                    onChange={e => { set({ locationName: e.target.value }); if (!e.target.value) setSuggestions([]); }}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    onChange={e => { set({ locationName: e.target.value }); if (!e.target.value) { setSuggestions([]); places.clear(); } }}
+                    onFocus={() => (places.available ? places.suggestions.length > 0 : suggestions.length > 0) && setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                     autoComplete="off"
                   />
-                  {isReverseGeocoding && (
+                  {(isReverseGeocoding || places.isLoading) && (
                     <div className="absolute right-3 top-3 w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
                   )}
-                  {showSuggestions && suggestions.length > 0 && (
-                    <div
-                      className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card"
-                    >
+                  {/* Google Places suggestions */}
+                  {places.available && showSuggestions && places.suggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
+                      {places.suggestions.map(s => (
+                        <button
+                          key={s.placeId}
+                          type="button"
+                          className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                          onMouseDown={() => selectGoogleSuggestion(s.placeId, s.description)}
+                        >
+                          <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
+                          <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
+                            {s.description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* Nominatim fallback suggestions */}
+                  {!places.available && showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
                       {suggestions.map((s, i) => (
                         <button
                           key={i}
