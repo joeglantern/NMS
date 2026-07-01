@@ -18,6 +18,7 @@ import { partnerRoutes } from './modules/partner/partner.routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { handoffRoutes } from './modules/handoff/handoff.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
+import { gbvRoutes } from './modules/gbv/gbv.routes.js';
 import { TrackingService } from './modules/tracking/tracking.service.js';
 
 /**
@@ -83,6 +84,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(analyticsRoutes, { prefix: '/analytics' });
   app.register(handoffRoutes, { prefix: '/handoff' });
   app.register(notificationsRoutes, { prefix: '/notifications' });
+  app.register(gbvRoutes, { prefix: '/gbv' });
 
   // ── GPS Tracking (Uffizio/Kimii) ──────────────────────────────────────────
   const trackingService = new TrackingService(app);

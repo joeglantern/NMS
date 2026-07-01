@@ -160,6 +160,9 @@ model Incident {
   ambulanceUsed    String? @map("ambulance_used")
   surveillanceNote String? @map("surveillance_note") @db.Text
 
+  // GBV flag
+  isGbvCase    Boolean @default(false) @map("is_gbv_case")
+
   // Partner update fields
   partnerNotes String? @map("partner_notes") @db.Text
   pcrUrl       String? @map("pcr_url")
@@ -187,6 +190,7 @@ model Incident {
   tasks          Task[]
   forwardingLogs ForwardingLog[]
   callLogs       CallLog[]
+  gbvReport      GbvReport?
 
   @@map("incidents")
 }
@@ -387,6 +391,33 @@ model IncidentNatureOption {
 
   @@unique([nature, detail])
   @@map("incident_nature_options")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GbvReport — Gender-Based Violence supplementary data, one-to-one with Incident
+// ─────────────────────────────────────────────────────────────────────────────
+
+model GbvReport {
+  id String @id @default(uuid())
+
+  survivorResidence String?  @map("survivor_residence")
+  hasDisability     Boolean? @map("has_disability")
+  gbvTypes          String[] @map("gbv_types")
+  violationLocation String?  @map("violation_location")
+  referredFor       String[] @map("referred_for")
+  referralFacility  String?  @map("referral_facility")
+  firstDisclosedTo  String?  @map("first_disclosed_to") @db.Text
+  challenges        String?  @db.Text
+  recommendations   String?  @db.Text
+  comment           String?  @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  incidentId String   @unique @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id])
+
+  @@map("gbv_reports")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

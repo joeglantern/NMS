@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning } from '@phosphor-icons/react';
 import api from '../../api/client';
 import { Incident, Vehicle, AuditLog, CallLog } from '../../types/api';
 import EndCaseModal from '../../components/shared/EndCaseModal';
@@ -233,6 +233,19 @@ export default function IncidentDetailPage() {
     },
   });
 
+  const sendToGbvMutation = useMutation({
+    mutationFn: () => api.post(`/gbv/cases/${id}/flag`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['gbv', 'cases'] });
+      addNotification({ type: 'success', title: 'Sent to GBV', message: `Case ${incident?.caseNumber} has been flagged as a GBV case.` });
+      navigate(`/gbv/cases/${id}`);
+    },
+    onError: (err: any) => {
+      addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not send to GBV.' });
+    },
+  });
+
   const { data: linkedCalls = [] } = useQuery({
     queryKey: ['pbx', 'cdr', 'linked', id],
     queryFn: async () => {
@@ -309,6 +322,24 @@ export default function IncidentDetailPage() {
             <Printer size={16} weight="bold" />
             Print
           </button>
+          {incident.isGbvCase ? (
+            <Link
+              to={`/gbv/cases/${id}`}
+              className="px-4 py-2 border border-status-danger/40 text-status-danger text-sm font-medium rounded-lg hover:bg-status-danger hover:text-white transition-all flex items-center gap-2"
+            >
+              <ShieldWarning size={16} weight="bold" />
+              View GBV Report
+            </Link>
+          ) : (
+            <button
+              onClick={() => sendToGbvMutation.mutate()}
+              disabled={incident.status === 'RESOLVED' || sendToGbvMutation.isPending}
+              className="px-4 py-2 border border-status-danger/40 text-status-danger text-sm font-medium rounded-lg hover:bg-status-danger hover:text-white transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ShieldWarning size={16} weight="bold" />
+              Send to GBV
+            </button>
+          )}
           <button
             onClick={() => setShowAssignPartnerModal(true)}
             disabled={incident.status === 'RESOLVED'}

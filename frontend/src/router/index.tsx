@@ -16,6 +16,8 @@ import PartnerDashboardPage from '../pages/partner/PartnerDashboardPage';
 import PartnerCaseDetailPage from '../pages/partner/PartnerCaseDetailPage';
 import FacilitiesPage from '../pages/admin/FacilitiesPage';
 import NatureOptionsPage from '../pages/admin/NatureOptionsPage';
+import GbvDashboardPage from '../pages/gbv/GbvDashboardPage';
+import GbvCaseDetailPage from '../pages/gbv/GbvCaseDetailPage';
 
 // Placeholder components for unimplemented pages
 const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-danger text-center">Unauthorized Access</div>;
@@ -147,6 +149,22 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'PARTNER']}>
             <PartnerCaseDetailPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'gbv/dashboard',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+            <GbvDashboardPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'gbv/cases/:id',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+            <GbvCaseDetailPage />
           </RoleGuard>
         ),
       },

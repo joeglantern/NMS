@@ -85,10 +85,28 @@ export interface Facility {
   isActive: boolean;
 }
 
+export interface GbvReport {
+  id: string;
+  incidentId: string;
+  survivorResidence?: string | null;
+  hasDisability?: boolean | null;
+  gbvTypes: string[];
+  violationLocation?: string | null;
+  referredFor: string[];
+  referralFacility?: string | null;
+  firstDisclosedTo?: string | null;
+  challenges?: string | null;
+  recommendations?: string | null;
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Incident {
   id: string;
   caseNumber: string;
   status: IncidentStatus;
+  isGbvCase?: boolean;
   chiefComplaint: string;
   locationName: string;
   subCounty: string;
@@ -123,6 +141,7 @@ export interface Incident {
   dispatcher?: Pick<User, 'id' | 'name' | 'phone'>;
   tasks?: Task[];
   forwardingLogs?: ForwardingLog[];
+  gbvReport?: GbvReport | null;
 }
 
 export interface ForwardingLog {
