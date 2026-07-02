@@ -16,6 +16,7 @@ interface AnalyticsData {
   total: number;
   byGender: { gender: string; count: number }[];
   bySubCounty: { subCounty: string; count: number }[];
+  byNature: { nature: string; count: number }[];
   byReferral: { facility: string; count: number }[];
   byStatus: { status: string; count: number }[];
   tat: {
@@ -24,6 +25,7 @@ interface AnalyticsData {
     avgHospitalMinutes: number | null;
   };
   trend: { date: string; count: number }[];
+  ambulanceUtilization: { ambulance: string; cases: number }[];
 }
 
 type Preset = '7d' | '30d' | '90d' | 'custom';
@@ -109,11 +111,17 @@ export default function AnalyticsPage() {
       ['Sub-County', 'Incidents'],
       ...data.bySubCounty.map(r => [r.subCounty, r.count]),
       [],
+      ['Nature of Alert', 'Incidents'],
+      ...data.byNature.map(r => [r.nature, r.count]),
+      [],
       ['Gender', 'Count'],
       ...data.byGender.map(r => [r.gender, r.count]),
       [],
       ['Status', 'Count'],
       ...data.byStatus.map(r => [r.status, r.count]),
+      [],
+      ['Ambulance', 'Cases'],
+      ...data.ambulanceUtilization.map(r => [r.ambulance, r.cases]),
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -318,26 +326,51 @@ export default function AnalyticsPage() {
         {/* Ambulance Utilization */}
         <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
           <div className="card-head">
-            <div className="card-title">Ambulance Utilization</div>
+            <div>
+              <div className="card-title">Ambulance Utilization</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Cases attended per vehicle</div>
+            </div>
           </div>
-          <div className="card-pad col" style={{ gap: 14 }}>
-            {[
-              { label: 'Total Tasks', value: data?.byStatus.reduce((a, s) => a + s.count, 0) ?? 0, color: 'var(--ink)' },
-              { label: 'Resolved', value: resolvedCount, color: 'var(--green)' },
-              { label: 'Active / Dispatched', value: (data?.byStatus.find((s) => s.status === 'DISPATCHED')?.count ?? 0) + (data?.byStatus.find((s) => s.status === 'DISPATCH_HANDLING')?.count ?? 0), color: 'var(--blue)' },
-              { label: 'Pending', value: submittedCount, color: 'var(--amber)' },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 5 }}>
-                  <span className="muted" style={{ fontSize: 12 }}>{item.label}</span>
-                  <span className="mono strong" style={{ fontSize: 13, color: item.color }}>{item.value}</span>
-                </div>
-                <div className="meter">
-                  <span style={{ width: data?.total ? `${Math.min(100, Math.round((item.value / data.total) * 100))}%` : '0%', background: item.color }} />
-                </div>
-              </div>
-            ))}
+          <div style={{ flex: 1, padding: '16px 20px' }}>
+            {(data?.ambulanceUtilization.length ?? 0) > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data?.ambulanceUtilization ?? []} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="var(--border)" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="ambulance" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink-2)', fontSize: 11 }} width={90} />
+                  <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="cases" name="Cases" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="muted" style={{ textAlign: 'center', paddingTop: 60, fontSize: 13 }}>No data</div>
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Nature of Alert Breakdown */}
+      <div className="card" style={{ height: 340, display: 'flex', flexDirection: 'column' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Cases by Nature of Alert</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Incident volume by clinical category</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: '16px 20px' }}>
+          {(data?.byNature.length ?? 0) > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data?.byNature ?? []} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="var(--border)" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'var(--muted)', fontSize: 10 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="nature" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink-2)', fontSize: 11 }} width={110} />
+                <RechartsTooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: 12 }} />
+                <Bar dataKey="count" name="Cases" fill="#B7791F" radius={[0, 4, 4, 0]} barSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="muted" style={{ textAlign: 'center', paddingTop: 60, fontSize: 13 }}>No data</div>
+          )}
         </div>
       </div>
 
