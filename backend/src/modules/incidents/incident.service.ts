@@ -63,7 +63,15 @@ export class IncidentService {
       targetFacilityId?: string;
       surveillanceNote?: string;
       isGbvCase?: boolean;
-      maternityVitals?: Record<string, unknown>;
+      vitals?: {
+        temperature?: string;
+        pulseRate?: string;
+        respirationRate?: string;
+        bp?: string;
+        spo2?: string;
+        fh?: string;
+      };
+      maternityVitals?: Record<string, any>;
     }
   ) {
     const caseNumber = this.generateCaseNumber();
@@ -103,6 +111,7 @@ export class IncidentService {
         targetFacilityId: data.targetFacilityId,
         surveillanceNote: data.surveillanceNote,
         isGbvCase: data.isGbvCase ?? false,
+        vitals: data.vitals ?? undefined,
         maternityVitals: data.maternityVitals ?? undefined,
         assignedAgencyId: user.agencyId,
         watcherId: user.userId,
@@ -215,6 +224,7 @@ export class IncidentService {
       hospitalLevelRequired?: number;
       preHospitalManagement?: string;
       partnerNotes?: string;
+      vitals?: Record<string, unknown>;
       maternityVitals?: Record<string, unknown>;
       pcrUrl?: string;
     }
@@ -237,7 +247,7 @@ export class IncidentService {
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
       'alertNatureDetail', 'placeOfReferral', 'hospitalLevelRequired',
-      'preHospitalManagement', 'partnerNotes', 'pcrUrl', 'maternityVitals',
+      'preHospitalManagement', 'partnerNotes', 'pcrUrl', 'vitals', 'maternityVitals',
     ] as const;
 
     for (const field of editableFields) {

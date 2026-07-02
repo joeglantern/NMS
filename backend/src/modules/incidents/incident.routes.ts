@@ -33,6 +33,14 @@ const createIncidentSchema = z.object({
   targetFacilityId: z.string().optional(),
   surveillanceNote: z.string().optional(),
   isGbvCase: z.boolean().optional(),
+  vitals: z.object({
+  temperature: z.string().optional(),
+  pulseRate: z.string().optional(),
+  respirationRate: z.string().optional(),
+  bp: z.string().optional(),
+  spo2: z.string().optional(),
+  fh: z.string().optional(),
+}).optional(),
   maternityVitals: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -57,6 +65,14 @@ const updateIncidentSchema = z.object({
   hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
   preHospitalManagement: z.string().optional(),
   partnerNotes: z.string().optional(),
+  vitals: z.object({
+  temperature: z.string().optional(),
+  pulseRate: z.string().optional(),
+  respirationRate: z.string().optional(),
+  bp: z.string().optional(),
+  spo2: z.string().optional(),
+  fh: z.string().optional(),
+}).optional(),
   maternityVitals: z.record(z.string(), z.unknown()).optional(),
   pcrUrl: z.string().url('PCR URL must be a valid URL').optional().or(z.literal('')),
 });
