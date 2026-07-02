@@ -14,7 +14,16 @@ interface AddPersonnelModalProps {
   onClose: () => void;
 }
 
-const ROLES: Role[] = ['SUPER_ADMIN', 'ADMIN', 'WATCHER', 'DISPATCHER', 'PARTNER'];
+const ROLES: { value: Role; label: string }[] = [
+  { value: 'SUPER_ADMIN',  label: 'Super Admin'  },
+  { value: 'ADMIN',        label: 'Admin'         },
+  { value: 'DISPATCHER',   label: 'Dispatcher'    },
+  { value: 'WATCHER',      label: 'Watcher'       },
+  { value: 'DRIVER',       label: 'Driver'        },
+  { value: 'EMT',          label: 'EMT'           },
+  { value: 'NURSE',        label: 'Nurse'         },
+  { value: 'PARTNER',      label: 'Partner'       },
+];
 
 export default function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
   const queryClient = useQueryClient();
@@ -40,7 +49,7 @@ export default function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModal
   });
 
   const mutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: typeof formData & { phone?: string }) => {
       return api.post('/admin/users', data);
     },
     onSuccess: () => {
@@ -107,7 +116,7 @@ export default function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModal
               addNotification({ type: 'error', title: 'Data Missing', message: 'Please select an agency.' });
               return;
             }
-            mutation.mutate(formData);
+            mutation.mutate({ ...formData, phone: formData.phone.trim() || undefined });
           }}
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
@@ -196,8 +205,8 @@ export default function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModal
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value as Role})}
                   >
-                    {ROLES.map(role => (
-                      <option key={role} value={role}>{role}</option>
+                    {ROLES.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
                     ))}
                   </select>
                 </div>
