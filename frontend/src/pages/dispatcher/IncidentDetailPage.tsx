@@ -37,6 +37,9 @@ export default function IncidentDetailPage() {
   const [showDeescalateConfirm, setShowDeescalateConfirm] = useState(false);
   const [escalateCasualtyCount, setEscalateCasualtyCount] = useState('');
   const [escalateNotes, setEscalateNotes] = useState('');
+  const [editedPreHospital, setEditedPreHospital] = useState('');
+  const [editedChallenges, setEditedChallenges] = useState('');
+  const [editedOtherNotes, setEditedOtherNotes] = useState('');
 
   // Fetch Incident
   const { data: incident, isLoading } = useQuery({
@@ -49,6 +52,9 @@ export default function IncidentDetailPage() {
       setEditedPlaceOfReferral(data.placeOfReferral ?? '');
       setEditedDispatcherChallenges(data.dispatcherChallenges ?? '');
       setEditedPcrUrl(data.pcrUrl ?? '');
+      setEditedPreHospital(data.preHospitalManagement ?? '');
+      setEditedChallenges(data.dispatcherChallenges ?? '');
+      setEditedOtherNotes(data.partnerNotes ?? '');
       return data;
     },
     enabled: !!id,
@@ -93,6 +99,21 @@ export default function IncidentDetailPage() {
         title: 'Update Failed',
         message: err?.response?.data?.message || 'Could not update incident. Please try again.',
       });
+    },
+  });
+
+  const clinicalNotesMutation = useMutation({
+    mutationFn: () => api.patch(`/incidents/${id}`, {
+      preHospitalManagement: editedPreHospital || undefined,
+      dispatcherChallenges: editedChallenges || undefined,
+      partnerNotes: editedOtherNotes || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      addNotification({ type: 'success', title: 'Saved', message: 'Clinical notes saved.' });
+    },
+    onError: (err: any) => {
+      addNotification({ type: 'error', title: 'Save Failed', message: err?.response?.data?.message || 'Could not save clinical notes.' });
     },
   });
 
@@ -640,15 +661,6 @@ export default function IncidentDetailPage() {
                 <label className="text-xs font-medium text-slate-400 block mb-1.5">Caller Notes</label>
                 <p className="italic text-slate-500 text-sm leading-relaxed">"{incident.watcherComments || incident.dispatcherComments || 'No specific notes provided.'}"</p>
               </div>
-              {incident.preHospitalManagement && (
-                <div className="col-span-2 bg-brand-green/5 p-4 rounded-lg border border-brand-green/20">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <FirstAid size={14} weight="bold" className="text-brand-green" />
-                    <label className="text-xs font-medium text-brand-green block">Pre-Hospital Management (from crew)</label>
-                  </div>
-                  <p className="text-sm text-brand-teal leading-relaxed whitespace-pre-line">{incident.preHospitalManagement}</p>
-                </div>
-              )}
             </div>
           </div>
 
@@ -963,6 +975,62 @@ export default function IncidentDetailPage() {
                   </p>
                 </div>
               ))}
+            </div>
+
+            {/* Clinical Notes — dispatcher-editable */}
+            <div className="border border-surface-border rounded-xl overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-surface-border flex items-center gap-2">
+                <FirstAid size={14} weight="bold" className="text-brand-teal" />
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Clinical Notes</p>
+              </div>
+              <div className="p-5 flex flex-col gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    Pre-Hospital Management
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-brand-teal resize-none outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green transition-all placeholder:text-slate-300"
+                    placeholder="Document interventions, medications administered, patient condition on scene..."
+                    value={editedPreHospital}
+                    onChange={e => setEditedPreHospital(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    Challenges Experienced
+                  </label>
+                  <textarea
+                    rows={2}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-brand-teal resize-none outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green transition-all placeholder:text-slate-300"
+                    placeholder="Access issues, traffic, patient non-compliance, equipment failure..."
+                    value={editedChallenges}
+                    onChange={e => setEditedChallenges(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    Other Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-brand-teal resize-none outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green transition-all placeholder:text-slate-300"
+                    placeholder="Any additional observations or handover information..."
+                    value={editedOtherNotes}
+                    onChange={e => setEditedOtherNotes(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => clinicalNotesMutation.mutate()}
+                    disabled={clinicalNotesMutation.isPending}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-brand-green text-white text-sm font-semibold rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircle size={16} weight="fill" />
+                    {clinicalNotesMutation.isPending ? 'Saving...' : 'Save Clinical Notes'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* PCR Reports uploaded by crew */}

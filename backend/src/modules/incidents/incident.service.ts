@@ -212,6 +212,7 @@ export class IncidentService {
       placeOfReferral?: string;
       hospitalLevelRequired?: number;
       preHospitalManagement?: string;
+      partnerNotes?: string;
       pcrUrl?: string;
     }
   ) {
@@ -233,7 +234,7 @@ export class IncidentService {
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
       'alertNatureDetail', 'placeOfReferral', 'hospitalLevelRequired',
-      'preHospitalManagement', 'pcrUrl',
+      'preHospitalManagement', 'partnerNotes', 'pcrUrl',
     ] as const;
 
     for (const field of editableFields) {

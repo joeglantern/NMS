@@ -55,6 +55,7 @@ const updateIncidentSchema = z.object({
   placeOfReferral: z.string().optional(),
   hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
   preHospitalManagement: z.string().optional(),
+  partnerNotes: z.string().optional(),
   pcrUrl: z.string().url('PCR URL must be a valid URL').optional().or(z.literal('')),
 });
 
