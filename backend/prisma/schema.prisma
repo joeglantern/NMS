@@ -160,6 +160,9 @@ model Incident {
   ambulanceUsed    String? @map("ambulance_used")
   surveillanceNote String? @map("surveillance_note") @db.Text
 
+  // Maternity vitals (populated when alertNature is Maternity)
+  maternityVitals Json? @map("maternity_vitals")
+
   // GBV flag
   isGbvCase    Boolean @default(false) @map("is_gbv_case")
 

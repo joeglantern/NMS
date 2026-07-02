@@ -85,6 +85,35 @@ export interface Facility {
   isActive: boolean;
 }
 
+export interface MaternityVitals {
+  admissionDateTime?: string;
+  parity?: string;
+  gravid?: string;
+  fetalHeartRate?: string;
+  membranes?: string;
+  characterOfLiquor?: string;
+  moulding?: string;
+  cervicalDilatation?: string;
+  descent?: string;
+  uterineContraction?: string;
+  medicationsFetal?: string;
+  bp?: string;
+  pulse?: string;
+  temperature?: string;
+  rbs?: string;
+  spo2?: string;
+  gcs?: string;
+  proteinInUrine?: string;
+  glucoseInUrine?: string;
+  urineOutput?: string;
+  deliveryDateTime?: string;
+  modeOfDelivery?: string;
+  newbornGender?: string;
+  birthWeight?: string;
+  conditionOfBaby?: string;
+  medicationNewborn?: string;
+}
+
 export interface GbvReport {
   id: string;
   incidentId: string;
@@ -142,6 +171,7 @@ export interface Incident {
   tasks?: Task[];
   forwardingLogs?: ForwardingLog[];
   gbvReport?: GbvReport | null;
+  maternityVitals?: MaternityVitals | null;
 }
 
 export interface ForwardingLog {

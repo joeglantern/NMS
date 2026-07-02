@@ -116,7 +116,7 @@ export default function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModal
               addNotification({ type: 'error', title: 'Data Missing', message: 'Please select an agency.' });
               return;
             }
-            mutation.mutate({ ...formData, phone: formData.phone.trim() || undefined });
+            mutation.mutate({ ...formData, phone: formData.phone.trim() || undefined } as typeof formData & { phone?: string });
           }}
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">

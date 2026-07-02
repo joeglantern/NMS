@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, Road, FirstAid, DownloadSimple, FileText, Siren } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, RoadHorizon, FirstAid, DownloadSimple, FileText, Siren, Baby } from '@phosphor-icons/react';
 import { useDirections } from '../../hooks/useDirections';
 import api from '../../api/client';
-import { Incident, Vehicle, AuditLog, CallLog, PatientCareReport } from '../../types/api';
+import { Incident, Vehicle, AuditLog, CallLog, PatientCareReport, MaternityVitals } from '../../types/api';
 import EndCaseModal from '../../components/shared/EndCaseModal';
 import { formatDistanceToNow } from 'date-fns';
 import Map from '../../components/shared/Map';
@@ -491,7 +491,7 @@ export default function IncidentDetailPage() {
                   <>
                     <div className="text-slate-300">|</div>
                     <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Road size={14} className="text-slate-400" />
+                      <RoadHorizon size={14} className="text-slate-400" />
                       <span className="line-clamp-1">{directions.steps[0]}</span>
                     </div>
                   </>
@@ -1075,6 +1075,81 @@ export default function IncidentDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Maternity Vitals — shown when alertNature is maternity */}
+      {incident?.maternityVitals && (() => {
+        const mv = incident.maternityVitals as MaternityVitals;
+        const row = (label: string, val?: string | null) => val ? (
+          <div key={label} className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+            <span className="text-sm font-medium text-brand-teal">{val}</span>
+          </div>
+        ) : null;
+        return (
+          <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-surface-border bg-pink-50 flex items-center gap-2">
+              <Baby size={16} weight="fill" className="text-pink-500" />
+              <h3 className="font-semibold text-pink-700 text-sm">Maternity Vitals</h3>
+            </div>
+            <div className="p-5 space-y-4">
+              {(mv.admissionDateTime || mv.parity || mv.gravid) && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Mother Information</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {row('Admission', mv.admissionDateTime)}
+                    {row('Parity', mv.parity)}
+                    {row('Gravida', mv.gravid)}
+                  </div>
+                </div>
+              )}
+              {(mv.fetalHeartRate || mv.membranes || mv.characterOfLiquor || mv.moulding || mv.cervicalDilatation || mv.descent || mv.uterineContraction || mv.medicationsFetal) && (
+                <div className="border-t border-surface-border pt-4">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Fetal Well-being</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {row('Fetal HR', mv.fetalHeartRate)}
+                    {row('Membranes', mv.membranes)}
+                    {row('Liquor', mv.characterOfLiquor)}
+                    {row('Moulding', mv.moulding)}
+                    {row('Cervix', mv.cervicalDilatation)}
+                    {row('Descent', mv.descent)}
+                    {row('Contractions', mv.uterineContraction)}
+                    {row('Meds (Fetal)', mv.medicationsFetal)}
+                  </div>
+                </div>
+              )}
+              {(mv.bp || mv.pulse || mv.temperature || mv.rbs || mv.spo2 || mv.gcs || mv.proteinInUrine || mv.glucoseInUrine || mv.urineOutput) && (
+                <div className="border-t border-surface-border pt-4">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Maternal Well-being</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {row('BP', mv.bp)}
+                    {row('Pulse', mv.pulse)}
+                    {row('Temp', mv.temperature)}
+                    {row('RBS', mv.rbs)}
+                    {row('SPO₂', mv.spo2)}
+                    {row('GCS', mv.gcs)}
+                    {row('Protein', mv.proteinInUrine)}
+                    {row('Glucose', mv.glucoseInUrine)}
+                    {row('Urine Output', mv.urineOutput)}
+                  </div>
+                </div>
+              )}
+              {(mv.deliveryDateTime || mv.modeOfDelivery || mv.newbornGender || mv.birthWeight || mv.conditionOfBaby || mv.medicationNewborn) && (
+                <div className="border-t border-surface-border pt-4">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Newborn</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {row('Delivery Time', mv.deliveryDateTime)}
+                    {row('Mode', mv.modeOfDelivery)}
+                    {row('Gender', mv.newbornGender)}
+                    {row('Birth Weight', mv.birthWeight)}
+                    {row('Condition', mv.conditionOfBaby)}
+                    {row('Meds (Newborn)', mv.medicationNewborn)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Scene Map — full width, tall panel */}
       <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">

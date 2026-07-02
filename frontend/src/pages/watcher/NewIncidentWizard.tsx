@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   CheckCircle, MapPin, PaperPlaneRight, ClipboardText,
   X, Phone, User, WarningCircle, FirstAid, ListChecks, XCircle,
-  ArrowRight, ArrowLeft, PencilSimple, Eye, ShieldWarning,
+  ArrowRight, ArrowLeft, PencilSimple, Eye, ShieldWarning, Baby,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
@@ -145,14 +145,15 @@ function SectionCard({
 // ── Review card ───────────────────────────────────────────────────────────────
 
 function ReviewCard({
-  title, onEdit, children,
+  title, onEdit, children, className,
 }: {
   title: string;
   onEdit: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="card overflow-hidden">
+    <div className={`card overflow-hidden${className ? ` ${className}` : ''}`}>
       <div
         className="px-4 py-3 border-b flex items-center justify-between"
         style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
@@ -171,6 +172,32 @@ function ReviewCard({
     </div>
   );
 }
+
+// ── Maternity vitals ──────────────────────────────────────────────────────────
+
+type MaternityVitalsForm = {
+  admissionDateTime: string; parity: string; gravid: string;
+  fetalHeartRate: string; membranes: string; characterOfLiquor: string;
+  moulding: string; cervicalDilatation: string; descent: string;
+  uterineContraction: string; medicationsFetal: string;
+  bp: string; pulse: string; temperature: string; rbs: string;
+  spo2: string; gcs: string; proteinInUrine: string;
+  glucoseInUrine: string; urineOutput: string;
+  deliveryDateTime: string; modeOfDelivery: string; newbornGender: string;
+  birthWeight: string; conditionOfBaby: string; medicationNewborn: string;
+};
+
+const defaultMV: MaternityVitalsForm = {
+  admissionDateTime: '', parity: '', gravid: '',
+  fetalHeartRate: '', membranes: '', characterOfLiquor: '',
+  moulding: '', cervicalDilatation: '', descent: '',
+  uterineContraction: '', medicationsFetal: '',
+  bp: '', pulse: '', temperature: '', rbs: '',
+  spo2: '', gcs: '', proteinInUrine: '',
+  glucoseInUrine: '', urineOutput: '',
+  deliveryDateTime: '', modeOfDelivery: '', newbornGender: '',
+  birthWeight: '', conditionOfBaby: '', medicationNewborn: '',
+};
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
@@ -240,6 +267,8 @@ export default function NewIncidentWizard() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<FormState>(defaultForm);
+  const [mv, setMV] = useState<MaternityVitalsForm>(defaultMV);
+  const setMat = (u: Partial<MaternityVitalsForm>) => setMV(p => ({ ...p, ...u }));
   const [suggestions, setSuggestions]           = useState<Array<{ display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([]);
   const [showSuggestions, setShowSuggestions]   = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
@@ -262,6 +291,7 @@ export default function NewIncidentWizard() {
 
   const uniqueNatures = natureOptions.map(o => o.nature);
   const detailsForNature = natureOptions.find(o => o.nature === form.alertNature)?.details ?? [];
+  const isMaternity = form.alertNature?.toLowerCase().includes('maternity');
 
 
 
@@ -385,6 +415,7 @@ export default function NewIncidentWizard() {
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
     isGbvCase:             form.isGbvCase || undefined,
+    maternityVitals:       isMaternity ? mv : undefined,
   });
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -461,7 +492,7 @@ export default function NewIncidentWizard() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => { setForm(defaultForm); navigate('/watcher/new-incident', { replace: true, state: {} }); }}
+            onClick={() => { setForm(defaultForm); setMV(defaultMV); navigate('/watcher/new-incident', { replace: true, state: {} }); }}
             className="btn btn-ghost flex items-center gap-2"
           >
             <PaperPlaneRight size={16} /> New Alert
@@ -744,6 +775,153 @@ export default function NewIncidentWizard() {
                 </Field>
 
               </SectionCard>
+
+              {/* ── Maternity Vitals — only when nature is Maternity ── */}
+              {isMaternity && (
+                <SectionCard title="Maternity Vitals" icon={Baby}>
+
+                  {/* Mother Information */}
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--muted)' }}>Mother Information</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field>
+                      <Label>Date / Time of Admission</Label>
+                      <input type="datetime-local" className={inputCls} value={mv.admissionDateTime} onChange={e => setMat({ admissionDateTime: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>Parity</Label>
+                      <input type="text" placeholder="e.g. P2" className={inputCls} value={mv.parity} onChange={e => setMat({ parity: e.target.value })} />
+                    </Field>
+                    <Field className="col-span-2 flex flex-col">
+                      <Label>Gravida</Label>
+                      <input type="text" placeholder="e.g. G3" className={inputCls} value={mv.gravid} onChange={e => setMat({ gravid: e.target.value })} />
+                    </Field>
+                  </div>
+
+                  <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Fetal Well-being</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field>
+                        <Label>Fetal Heart Rate</Label>
+                        <input type="text" placeholder="bpm" className={inputCls} value={mv.fetalHeartRate} onChange={e => setMat({ fetalHeartRate: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Membranes</Label>
+                        <input type="text" placeholder="Intact / Ruptured" className={inputCls} value={mv.membranes} onChange={e => setMat({ membranes: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Character of Liquor</Label>
+                        <input type="text" placeholder="Clear / Meconium stained..." className={inputCls} value={mv.characterOfLiquor} onChange={e => setMat({ characterOfLiquor: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Moulding</Label>
+                        <input type="text" placeholder="0 / + / ++ / +++" className={inputCls} value={mv.moulding} onChange={e => setMat({ moulding: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Cervical Dilatation</Label>
+                        <input type="text" placeholder="cm" className={inputCls} value={mv.cervicalDilatation} onChange={e => setMat({ cervicalDilatation: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Descent</Label>
+                        <input type="text" placeholder="Fifths palpable" className={inputCls} value={mv.descent} onChange={e => setMat({ descent: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Uterine Contraction</Label>
+                        <input type="text" placeholder="Frequency / Duration" className={inputCls} value={mv.uterineContraction} onChange={e => setMat({ uterineContraction: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Medications (Fetal)</Label>
+                        <input type="text" placeholder="e.g. Betamethasone..." className={inputCls} value={mv.medicationsFetal} onChange={e => setMat({ medicationsFetal: e.target.value })} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Maternal Well-being</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field>
+                        <Label>BP</Label>
+                        <input type="text" placeholder="mmHg" className={inputCls} value={mv.bp} onChange={e => setMat({ bp: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Pulse</Label>
+                        <input type="text" placeholder="bpm" className={inputCls} value={mv.pulse} onChange={e => setMat({ pulse: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Temperature</Label>
+                        <input type="text" placeholder="°C" className={inputCls} value={mv.temperature} onChange={e => setMat({ temperature: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>RBS</Label>
+                        <input type="text" placeholder="mmol/L" className={inputCls} value={mv.rbs} onChange={e => setMat({ rbs: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>SPO₂</Label>
+                        <input type="text" placeholder="%" className={inputCls} value={mv.spo2} onChange={e => setMat({ spo2: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>GCS</Label>
+                        <input type="text" placeholder="/15" className={inputCls} value={mv.gcs} onChange={e => setMat({ gcs: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Protein / Albumin in Urine</Label>
+                        <input type="text" placeholder="Nil / + / ++" className={inputCls} value={mv.proteinInUrine} onChange={e => setMat({ proteinInUrine: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Glucose in Urine</Label>
+                        <input type="text" placeholder="Nil / +" className={inputCls} value={mv.glucoseInUrine} onChange={e => setMat({ glucoseInUrine: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Urine Output</Label>
+                        <input type="text" placeholder="ml/hr" className={inputCls} value={mv.urineOutput} onChange={e => setMat({ urineOutput: e.target.value })} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Newborn</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field>
+                        <Label>Date &amp; Time of Delivery</Label>
+                        <input type="datetime-local" className={inputCls} value={mv.deliveryDateTime} onChange={e => setMat({ deliveryDateTime: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Mode of Delivery</Label>
+                        <select className={selectCls} value={mv.modeOfDelivery} onChange={e => setMat({ modeOfDelivery: e.target.value })}>
+                          <option value="">Select...</option>
+                          <option>SVD</option>
+                          <option>Caesarean Section</option>
+                          <option>Assisted Vaginal (Forceps)</option>
+                          <option>Assisted Vaginal (Vacuum)</option>
+                          <option>Breech</option>
+                          <option>Other</option>
+                        </select>
+                      </Field>
+                      <Field>
+                        <Label>Gender</Label>
+                        <select className={selectCls} value={mv.newbornGender} onChange={e => setMat({ newbornGender: e.target.value })}>
+                          <option value="">Select...</option>
+                          <option>Male</option>
+                          <option>Female</option>
+                          <option>Indeterminate</option>
+                        </select>
+                      </Field>
+                      <Field>
+                        <Label>Birth Weight</Label>
+                        <input type="text" placeholder="kg" className={inputCls} value={mv.birthWeight} onChange={e => setMat({ birthWeight: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Condition of Baby</Label>
+                        <input type="text" placeholder="APGAR / well / distressed..." className={inputCls} value={mv.conditionOfBaby} onChange={e => setMat({ conditionOfBaby: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>Medication (Newborn)</Label>
+                        <input type="text" placeholder="e.g. Vitamin K, BCG..." className={inputCls} value={mv.medicationNewborn} onChange={e => setMat({ medicationNewborn: e.target.value })} />
+                      </Field>
+                    </div>
+                  </div>
+
+                </SectionCard>
+              )}
             </div>
           </div>
         )}
@@ -893,6 +1071,39 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="Pre-hosp." value={form.preHospitalManagement} />
                 <ReviewRow label="Referral"  value={form.placeOfReferral} />
               </ReviewCard>
+
+              {isMaternity && (
+                <ReviewCard title="Maternity Vitals" onEdit={() => setStep(1)} className="md:col-span-2">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8">
+                    <ReviewRow label="Admission"       value={mv.admissionDateTime} />
+                    <ReviewRow label="Parity"          value={mv.parity} />
+                    <ReviewRow label="Gravida"         value={mv.gravid} />
+                    <ReviewRow label="Fetal HR"        value={mv.fetalHeartRate} />
+                    <ReviewRow label="Membranes"       value={mv.membranes} />
+                    <ReviewRow label="Liquor"          value={mv.characterOfLiquor} />
+                    <ReviewRow label="Moulding"        value={mv.moulding} />
+                    <ReviewRow label="Cervix"          value={mv.cervicalDilatation} />
+                    <ReviewRow label="Descent"         value={mv.descent} />
+                    <ReviewRow label="Contractions"    value={mv.uterineContraction} />
+                    <ReviewRow label="Meds (Fetal)"    value={mv.medicationsFetal} />
+                    <ReviewRow label="BP"              value={mv.bp} />
+                    <ReviewRow label="Pulse"           value={mv.pulse} />
+                    <ReviewRow label="Temp"            value={mv.temperature} />
+                    <ReviewRow label="RBS"             value={mv.rbs} />
+                    <ReviewRow label="SPO₂"            value={mv.spo2} />
+                    <ReviewRow label="GCS"             value={mv.gcs} />
+                    <ReviewRow label="Protein"         value={mv.proteinInUrine} />
+                    <ReviewRow label="Glucose"         value={mv.glucoseInUrine} />
+                    <ReviewRow label="Urine Output"    value={mv.urineOutput} />
+                    <ReviewRow label="Delivery Time"   value={mv.deliveryDateTime} />
+                    <ReviewRow label="Mode"            value={mv.modeOfDelivery} />
+                    <ReviewRow label="Gender"          value={mv.newbornGender} />
+                    <ReviewRow label="Birth Weight"    value={mv.birthWeight} />
+                    <ReviewRow label="Baby Condition"  value={mv.conditionOfBaby} />
+                    <ReviewRow label="Meds (Newborn)"  value={mv.medicationNewborn} />
+                  </div>
+                </ReviewCard>
+              )}
             </div>
 
             {/* Chief complaint highlight */}
