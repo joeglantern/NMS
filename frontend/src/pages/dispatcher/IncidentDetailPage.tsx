@@ -9,7 +9,7 @@ import EndCaseModal from '../../components/shared/EndCaseModal';
 import { formatDistanceToNow } from 'date-fns';
 import Map from '../../components/shared/Map';
 import { useNotificationStore } from '../../stores/notificationStore';
-import { LiveVehicle } from '../../hooks/useVehicleTracking';
+import { useVehicleTracking } from '../../hooks/useVehicleTracking';
 import { socket } from '../../lib/socket';
 
 export default function IncidentDetailPage() {
@@ -275,6 +275,9 @@ export default function IncidentDetailPage() {
       addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not link call.' });
     },
   });
+
+  // ── Full fleet tracking (mirrors dispatch map) ────────────────────────────
+  const { vehicles: liveVehicles } = useVehicleTracking();
 
   // ── Directions — vehicle en-route to incident ─────────────────────────────
   const dispatchedTask = incident?.tasks?.find(t => t.status === 'EN_ROUTE' || t.status === 'ACCEPTED');
@@ -861,10 +864,10 @@ export default function IncidentDetailPage() {
               <span className="w-2 h-2 bg-status-danger rounded-full animate-pulse"></span>
               Scene
             </div>
-            {nearestVehicles.filter(v => v.lastLat && v.lastLng).length > 0 && (
+            {liveVehicles.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-brand-green font-medium">
                 <span className="w-2 h-2 bg-brand-green rounded-full"></span>
-                {nearestVehicles.filter(v => v.lastLat && v.lastLng).length} ready units nearby
+                {liveVehicles.filter(v => v.dbStatus === 'READY' && v.hasDriver).length} ready · {liveVehicles.length} tracked
               </div>
             )}
           </div>
@@ -874,25 +877,19 @@ export default function IncidentDetailPage() {
             center={[incident.lat || -1.2921, incident.lng || 36.8219]}
             zoom={14}
             markers={[{ id: incident.id, lat: incident.lat || -1.2921, lng: incident.lng || 36.8219, title: incident.caseNumber, type: 'incident' }]}
-            vehicleMarkers={nearestVehicles
-              .filter(v => v.lastLat && v.lastLng)
-              .map((v): LiveVehicle => ({
-                vehicleId: v.id,
-                imei: v.imei,
-                registration: v.registrationNumber,
-                lat: v.lastLat!,
-                lng: v.lastLng!,
-                speed: 0,
-                heading: 0,
-                ignition: false,
-                timestamp: v.lastLocationAt ?? new Date().toISOString(),
-                dbStatus: (v.status as LiveVehicle['dbStatus']) ?? 'READY',
-                isActive: v.isActive,
-                hasDriver: !!v.currentDriver,
-              }))}
+            vehicleMarkers={liveVehicles}
             onVehicleClick={v => {
-              setSelectedVehicleId(v.vehicleId);
-              document.getElementById('dispatch-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const isDispatchable = nearestVehicles.some(nv => nv.id === v.vehicleId);
+              if (isDispatchable) {
+                setSelectedVehicleId(v.vehicleId);
+                document.getElementById('dispatch-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              } else {
+                addNotification({
+                  type: 'error',
+                  title: 'Not Available',
+                  message: `${v.registration} is ${v.dbStatus === 'BUSY' ? 'already on a call' : v.dbStatus === 'MAINTENANCE' ? 'under maintenance' : 'not ready for dispatch'}.`,
+                });
+              }
             }}
           />
         </div>
