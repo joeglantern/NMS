@@ -159,7 +159,10 @@ export class IncidentService {
           include: {
             vehicle: true,
             driver: { select: { name: true, phone: true } },
+            emt:    { select: { name: true, phone: true } },
+            nurse:  { select: { name: true, phone: true } },
           },
+          orderBy: { receivedAt: 'desc' },
         },
         forwardingLogs: {
           include: {

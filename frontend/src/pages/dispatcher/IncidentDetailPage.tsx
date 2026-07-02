@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, Road } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, Road, FirstAid, DownloadSimple, FileText, Siren } from '@phosphor-icons/react';
 import { useDirections } from '../../hooks/useDirections';
 import api from '../../api/client';
-import { Incident, Vehicle, AuditLog, CallLog } from '../../types/api';
+import { Incident, Vehicle, AuditLog, CallLog, PatientCareReport } from '../../types/api';
 import EndCaseModal from '../../components/shared/EndCaseModal';
 import { formatDistanceToNow } from 'date-fns';
 import Map from '../../components/shared/Map';
@@ -52,6 +52,7 @@ export default function IncidentDetailPage() {
       return data;
     },
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: tatData } = useQuery({
@@ -127,11 +128,18 @@ export default function IncidentDetailPage() {
       if (task.incidentId !== id) return;
       queryClient.invalidateQueries({ queryKey: ['incident', id] });
     }
+    function onTaskUpdated(task: { incidentId?: string }) {
+      if (task.incidentId && task.incidentId !== id) return;
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
     socket.on('incident:update', onIncidentUpdate);
     socket.on('task:assigned', onTaskAssigned);
+    socket.on('task:updated', onTaskUpdated);
     return () => {
       socket.off('incident:update', onIncidentUpdate);
       socket.off('task:assigned', onTaskAssigned);
+      socket.off('task:updated', onTaskUpdated);
     };
   }, [id, queryClient]);
 
@@ -275,6 +283,41 @@ export default function IncidentDetailPage() {
       addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not link call.' });
     },
   });
+
+  // ── Active task + PCR reports from crew ──────────────────────────────────
+  const activeTask = incident?.tasks
+    ?.filter(t => t.status !== 'CANCELLED')
+    ?.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())?.[0] ?? null;
+
+  const { data: pcrReports = [] } = useQuery({
+    queryKey: ['tasks', activeTask?.id, 'pcr-reports'],
+    queryFn: async () => {
+      const res = await api.get(`/tasks/${activeTask!.id}/patient-care-reports`);
+      return res.data.data as PatientCareReport[];
+    },
+    enabled: !!activeTask?.id,
+    refetchInterval: 30_000,
+  });
+
+  async function downloadPcrFile(report: PatientCareReport) {
+    try {
+      const res = await api.get(`/tasks/${report.taskId}/patient-care-reports/${report.id}/file`, {
+        responseType: 'blob',
+      });
+      const ext = report.mimeType.includes('pdf') ? '.pdf'
+        : report.mimeType.includes('image') ? '.jpg'
+        : '.docx';
+      const blob = new Blob([res.data as BlobPart], { type: report.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PCR_${report.id}${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addNotification({ type: 'error', title: 'Download Failed', message: 'Could not download the PCR file.' });
+    }
+  }
 
   // ── Full fleet tracking (mirrors dispatch map) ────────────────────────────
   const { vehicles: liveVehicles } = useVehicleTracking();
@@ -597,6 +640,15 @@ export default function IncidentDetailPage() {
                 <label className="text-xs font-medium text-slate-400 block mb-1.5">Caller Notes</label>
                 <p className="italic text-slate-500 text-sm leading-relaxed">"{incident.watcherComments || incident.dispatcherComments || 'No specific notes provided.'}"</p>
               </div>
+              {incident.preHospitalManagement && (
+                <div className="col-span-2 bg-brand-green/5 p-4 rounded-lg border border-brand-green/20">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <FirstAid size={14} weight="bold" className="text-brand-green" />
+                    <label className="text-xs font-medium text-brand-green block">Pre-Hospital Management (from crew)</label>
+                  </div>
+                  <p className="text-sm text-brand-teal leading-relaxed whitespace-pre-line">{incident.preHospitalManagement}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -851,6 +903,110 @@ export default function IncidentDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Crew & Clinical Report — shown after dispatch */}
+      {activeTask && (
+        <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-surface-border bg-slate-50 flex items-center gap-2">
+            <Siren size={16} weight="fill" className="text-brand-teal" />
+            <h3 className="font-semibold text-brand-teal text-sm">Ambulance Crew Report</h3>
+            <span className={`ml-2 text-xs font-semibold px-2.5 py-1 rounded-md ${
+              activeTask.status === 'COMPLETED'      ? 'bg-brand-green/10 text-brand-green' :
+              activeTask.status === 'AT_SCENE'       ? 'bg-brand-teal/10 text-brand-teal' :
+              activeTask.status === 'AT_HOSPITAL'    ? 'bg-status-info/10 text-status-info' :
+              activeTask.status === 'PATIENT_PICKED' ? 'bg-amber-100 text-amber-700' :
+              activeTask.status === 'EN_ROUTE'       ? 'bg-brand-green/10 text-brand-green' :
+              'bg-slate-100 text-slate-500'
+            }`}>{activeTask.status.replace(/_/g, ' ')}</span>
+            {activeTask.vehicle && (
+              <span className="ml-auto text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                Unit: {activeTask.vehicle.registrationNumber}
+              </span>
+            )}
+          </div>
+
+          <div className="p-6 flex flex-col gap-6">
+            {/* Crew Members */}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { role: 'Driver', member: activeTask.driver },
+                { role: 'EMT',    member: activeTask.emt },
+                { role: 'Nurse',  member: activeTask.nurse },
+              ].map(({ role, member }) => (
+                <div key={role} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{role}</p>
+                  {member ? (
+                    <>
+                      <p className="text-sm font-semibold text-brand-teal">{member.name}</p>
+                      {member.phone && <p className="text-xs text-slate-400 mt-0.5">{member.phone}</p>}
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-300">Not assigned</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Task Status Timestamps */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {[
+                { label: 'Received',       ts: activeTask.receivedAt },
+                { label: 'Accepted',       ts: activeTask.acceptedAt },
+                { label: 'At Scene',       ts: activeTask.sceneArrivalAt },
+                { label: 'Patient Picked', ts: activeTask.patientPickAt },
+                { label: 'At Hospital',    ts: activeTask.facilityArrivalAt },
+              ].map(({ label, ts }) => (
+                <div key={label} className={`rounded-lg p-3 border ${ts ? 'bg-brand-green/5 border-brand-green/20' : 'bg-slate-50 border-slate-100'}`}>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-slate-400">{label}</p>
+                  <p className={`text-xs font-semibold ${ts ? 'text-brand-teal' : 'text-slate-300'}`}>
+                    {ts ? new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* PCR Reports uploaded by crew */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <FileText size={14} weight="bold" className="text-brand-teal" />
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Patient Care Reports (PCR)
+                  {pcrReports.length > 0 && (
+                    <span className="ml-2 bg-brand-teal/10 text-brand-teal px-2 py-0.5 rounded-full text-[10px] font-bold">{pcrReports.length}</span>
+                  )}
+                </p>
+              </div>
+              {pcrReports.length === 0 ? (
+                <p className="text-xs text-slate-400 py-3">No PCR files uploaded yet. Crew uploads after task completion.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {pcrReports.map(report => (
+                    <div key={report.id} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-surface-border hover:border-brand-teal/30 hover:bg-brand-teal/5 transition-all group">
+                      <FileText size={18} weight="fill" className="text-brand-teal flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-brand-teal truncate">
+                          {report.mimeType.includes('pdf') ? 'PDF Report' : report.mimeType.includes('image') ? 'Image Report' : 'Document Report'}
+                        </p>
+                        {report.note && <p className="text-xs text-slate-400 truncate mt-0.5">{report.note}</p>}
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {(report.fileSize / 1024).toFixed(1)} KB · {new Date(report.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => downloadPcrFile(report)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-teal border border-brand-teal/30 rounded-lg hover:bg-brand-teal hover:text-white transition-all flex-shrink-0"
+                      >
+                        <DownloadSimple size={14} weight="bold" />
+                        Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scene Map — full width, tall panel */}
       <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">

@@ -162,13 +162,28 @@ export interface Task {
   patientPickAt?: string;
   facilityArrivalAt?: string;
   completedAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
   incidentId: string;
   vehicleId: string;
   vehicle?: Vehicle;
   driverId: string;
-  emtId: string;
-  nurseId: string;
-  driver?: Pick<User, 'name' | 'phone'>;
+  emtId?: string | null;
+  nurseId?: string | null;
+  driver?: Pick<User, 'name' | 'phone'> | null;
+  emt?: Pick<User, 'name' | 'phone'> | null;
+  nurse?: Pick<User, 'name' | 'phone'> | null;
+}
+
+export interface PatientCareReport {
+  id: string;
+  taskId: string;
+  uploaderId: string;
+  note: string;
+  filePath: string;
+  mimeType: string;
+  fileSize: number;
+  createdAt: string;
 }
 
 export interface AuditLog {
