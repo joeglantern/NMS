@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getMapsLoader, mapsReady } from '../lib/mapsLoader';
+import { loadMapsLibrary, mapsReady } from '../lib/mapsLoader';
 
 export interface PlaceSuggestion {
   placeId: string;
@@ -20,8 +20,7 @@ export function usePlacesAutocomplete(countryCode = 'ke') {
 
   useEffect(() => {
     if (!mapsReady) return;
-    getMapsLoader()
-      .load()
+    loadMapsLibrary('places')
       .then(() => {
         serviceRef.current = new google.maps.places.AutocompleteService();
         geocoderRef.current = new google.maps.Geocoder();

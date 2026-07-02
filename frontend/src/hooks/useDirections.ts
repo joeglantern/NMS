@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getMapsLoader, mapsReady } from '../lib/mapsLoader';
+import { loadMapsLibrary, mapsReady } from '../lib/mapsLoader';
 
 export interface DirectionsResult {
   durationText: string;    // e.g. "12 mins"
@@ -31,7 +31,7 @@ export function useDirections(
       setLoading(true);
       setError(null);
       try {
-        await getMapsLoader().load();
+        await loadMapsLibrary('routes');
         const service = new google.maps.DirectionsService();
         const res = await service.route({
           origin: new google.maps.LatLng(origin!.lat, origin!.lng),
