@@ -11,10 +11,12 @@ export class AnalyticsService {
       total,
       byGender,
       bySubCounty,
+      byNature,
       byReferral,
       byStatus,
       tasks,
       trendRaw,
+      utilizationRaw,
     ] = await Promise.all([
       this.app.prisma.incident.count({ where }),
 
@@ -31,6 +33,13 @@ export class AnalyticsService {
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
         take: 8,
+      }),
+
+      this.app.prisma.incident.groupBy({
+        by: ['alertNature'],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
       }),
 
       this.app.prisma.$queryRaw<Array<{ facility: string; count: bigint }>>`
@@ -66,6 +75,16 @@ export class AnalyticsService {
         select: { createdAt: true },
         orderBy: { createdAt: 'asc' },
       }),
+
+      this.app.prisma.$queryRaw<Array<{ registration: string; count: bigint }>>`
+        SELECT v.registration_number AS registration, COUNT(t.id) AS count
+        FROM tasks t
+        JOIN vehicles v ON v.id = t.vehicle_id
+        WHERE t.created_at >= ${from} AND t.created_at <= ${to}
+        GROUP BY v.registration_number
+        ORDER BY count DESC
+        LIMIT 15
+      `,
     ]);
 
     // TAT averages in minutes
@@ -104,6 +123,10 @@ export class AnalyticsService {
         subCounty: s.subCounty,
         count: s._count.id,
       })),
+      byNature: byNature.map(n => ({
+        nature: n.alertNature || 'Unspecified',
+        count: n._count.id,
+      })),
       byReferral: (byReferral as Array<{ facility: string; count: bigint }>).map(r => ({
         facility: r.facility,
         count: Number(r.count),
@@ -118,6 +141,10 @@ export class AnalyticsService {
         avgHospitalMinutes: avg(hospitalTimes),
       },
       trend,
+      ambulanceUtilization: (utilizationRaw as Array<{ registration: string; count: bigint }>).map(u => ({
+        ambulance: u.registration,
+        cases: Number(u.count),
+      })),
     };
   }
 }

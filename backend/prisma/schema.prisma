@@ -163,6 +163,9 @@ model Incident {
   // Maternity vitals (populated when alertNature is Maternity)
   maternityVitals Json? @map("maternity_vitals")
 
+  // Patient vitals (Temperature, Pulse, Respiration, BP, SPO2, FH)
+  vitals Json? @map("vitals")
+
   // GBV flag
   isGbvCase    Boolean @default(false) @map("is_gbv_case")
 

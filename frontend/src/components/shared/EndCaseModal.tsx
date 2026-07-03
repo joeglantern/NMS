@@ -16,12 +16,11 @@ interface Props {
 }
 
 const REASON_PRESETS = [
-  'Patient refused treatment / transport',
-  'Patient transferred to another facility',
-  'False alarm — no emergency confirmed',
-  'Resolved on scene without transport',
-  'Duplicate case — merged with another incident',
-  'Case handed off to partner agency',
+  'Patient Received',
+  'Referral Declined',
+  'Died on Transit',
+  'Died on Arrival',
+  'Alert Terminated',
 ];
 
 export default function EndCaseModal({
@@ -30,9 +29,12 @@ export default function EndCaseModal({
   const queryClient = useQueryClient();
   const { addNotification } = useNotificationStore();
   const [reason, setReason] = useState('');
+  const [extraNote, setExtraNote] = useState('');
 
   const mutation = useMutation({
-    mutationFn: () => api.post(`/incidents/${incidentId}/close`, { reason }),
+    mutationFn: () => api.post(`/incidents/${incidentId}/close`, {
+      reason: extraNote.trim() ? `${reason} — ${extraNote.trim()}` : reason,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
@@ -45,6 +47,7 @@ export default function EndCaseModal({
         message: `${caseNumber} has been closed and the reason recorded.`,
       });
       setReason('');
+      setExtraNote('');
       onClose();
       onSuccess?.();
     },
@@ -59,7 +62,7 @@ export default function EndCaseModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = reason.trim().length >= 10 && !mutation.isPending;
+  const canSubmit = !!reason && !mutation.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -92,16 +95,18 @@ export default function EndCaseModal({
             </p>
           </div>
 
-          {/* Preset reasons */}
+          {/* Reason — required single choice */}
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Quick Select</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+              Reason for Ending Case <span className="text-status-danger">*</span>
+            </p>
+            <div className="flex flex-col gap-2">
               {REASON_PRESETS.map(preset => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => setReason(preset)}
-                  className={`text-xs px-3 py-1.5 rounded-lg border-2 font-medium transition-all ${
+                  className={`text-left text-sm px-4 py-3 rounded-xl border-2 font-medium transition-all ${
                     reason === preset
                       ? 'border-status-danger bg-status-danger/5 text-status-danger'
                       : 'border-slate-200 text-slate-600 hover:border-slate-300'
@@ -113,21 +118,18 @@ export default function EndCaseModal({
             </div>
           </div>
 
-          {/* Reason textarea */}
+          {/* Optional extra detail */}
           <div>
             <label className="block text-sm font-bold text-brand-teal mb-2">
-              Closure Reason <span className="text-status-danger">*</span>
+              Additional Notes (optional)
             </label>
             <textarea
-              rows={3}
-              placeholder="Describe why this case is being closed (minimum 10 characters)…"
+              rows={2}
+              placeholder="Any extra detail…"
               className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-status-danger focus:border-status-danger outline-none resize-none text-slate-700 placeholder:text-slate-300 bg-white transition-all"
-              value={reason}
-              onChange={e => setReason(e.target.value)}
+              value={extraNote}
+              onChange={e => setExtraNote(e.target.value)}
             />
-            <p className={`text-xs mt-1 ${reason.trim().length < 10 && reason.length > 0 ? 'text-status-danger' : 'text-slate-400'}`}>
-              {reason.trim().length} / 10 characters minimum
-            </p>
           </div>
         </div>
 

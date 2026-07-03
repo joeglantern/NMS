@@ -173,6 +173,26 @@ function ReviewCard({
   );
 }
 
+// ── Patient vitals ────────────────────────────────────────────────────────────
+
+type VitalsForm = {
+  temperature: string;
+  pulseRate: string;
+  respirationRate: string;
+  bp: string;
+  spo2: string;
+  fh: string;
+};
+
+const defaultVitals: VitalsForm = {
+  temperature: '',
+  pulseRate: '',
+  respirationRate: '',
+  bp: '',
+  spo2: '',
+  fh: '',
+};
+
 // ── Maternity vitals ──────────────────────────────────────────────────────────
 
 type MaternityVitalsForm = {
@@ -212,6 +232,7 @@ type FormState = {
   lat: number;
   lng: number;
   patientName: string;
+  patientContact: string;
   patientAge: string;
   patientGender: string;
   nextOfKin: string;
@@ -238,6 +259,7 @@ const defaultForm: FormState = {
   lat: -1.2921,
   lng: 36.8219,
   patientName: '',
+  patientContact: '',
   patientAge: '',
   patientGender: '',
   nextOfKin: '',
@@ -267,6 +289,8 @@ export default function NewIncidentWizard() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<FormState>(defaultForm);
+  const [vitals, setVitals] = useState<VitalsForm>(defaultVitals);
+  const setVit = (u: Partial<VitalsForm>) => setVitals(p => ({ ...p, ...u }));
   const [mv, setMV] = useState<MaternityVitalsForm>(defaultMV);
   const setMat = (u: Partial<MaternityVitalsForm>) => setMV(p => ({ ...p, ...u }));
   const [suggestions, setSuggestions]           = useState<Array<{ display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([]);
@@ -402,6 +426,7 @@ export default function NewIncidentWizard() {
     lat:                   form.lat,
     lng:                   form.lng,
     patientName:           form.patientName  || undefined,
+    patientContact:        form.patientContact || undefined, 
     patientAge:            form.patientAge   || undefined,
     patientGender:         form.patientGender || undefined,
     nextOfKin:             form.nextOfKin    || undefined,
@@ -415,6 +440,7 @@ export default function NewIncidentWizard() {
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
     isGbvCase:             form.isGbvCase || undefined,
+    vitals:                vitals,
     maternityVitals:       isMaternity ? mv : undefined,
   });
 
@@ -492,7 +518,7 @@ export default function NewIncidentWizard() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => { setForm(defaultForm); setMV(defaultMV); navigate('/watcher/new-incident', { replace: true, state: {} }); }}
+            onClick={() => { setForm(defaultForm); setVitals(defaultVitals); setMV(defaultMV); navigate('/watcher/new-incident', { replace: true, state: {} }); }}
             className="btn btn-ghost flex items-center gap-2"
           >
             <PaperPlaneRight size={16} /> New Alert
@@ -594,6 +620,18 @@ export default function NewIncidentWizard() {
                 <Field>
                   <Label>Patient Name</Label>
                   <input type="text" placeholder="Full name" className={inputCls} value={form.patientName} onChange={e => set({ patientName: e.target.value })} />
+                </Field>
+                <Field>
+                  <Label>Patient Phone Number</Label>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    pattern="[0-9+\-\s]*"
+                    placeholder="07XXXXXXXX"
+                    className={inputCls}
+                    value={form.patientContact}
+                    onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, ''); set({ patientContact: v }); }}
+                  />
                 </Field>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -751,6 +789,37 @@ export default function NewIncidentWizard() {
                   />
                   <Hint>Be as specific as possible — this is what dispatchers see first.</Hint>
                 </Field>
+
+                {/* ── Patient Vitals ── */}
+                <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Patient Vitals</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field>
+                      <Label>Temperature</Label>
+                      <input type="text" placeholder="°C" className={inputCls} value={vitals.temperature} onChange={e => setVit({ temperature: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>Pulse Rate</Label>
+                      <input type="text" placeholder="bpm" className={inputCls} value={vitals.pulseRate} onChange={e => setVit({ pulseRate: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>Respiration Rate</Label>
+                      <input type="text" placeholder="/min" className={inputCls} value={vitals.respirationRate} onChange={e => setVit({ respirationRate: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>BP</Label>
+                      <input type="text" placeholder="mmHg" className={inputCls} value={vitals.bp} onChange={e => setVit({ bp: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>SPO₂</Label>
+                      <input type="text" placeholder="%" className={inputCls} value={vitals.spo2} onChange={e => setVit({ spo2: e.target.value })} />
+                    </Field>
+                    <Field>
+                      <Label>FH</Label>
+                      <input type="text" className={inputCls} value={vitals.fh} onChange={e => setVit({ fh: e.target.value })} />
+                    </Field>
+                  </div>
+                </div>
 
                 <Field>
                   <Label>Caller / Watcher Notes</Label>
@@ -1060,6 +1129,7 @@ export default function NewIncidentWizard() {
 
               <ReviewCard title="Step 1 · Patient" onEdit={() => setStep(1)}>
                 <ReviewRow label="Name"        value={form.patientName} />
+                <ReviewRow label="Patient Phone" value={form.patientContact} />
                 <ReviewRow label="Age / Sex"   value={[form.patientAge, form.patientGender].filter(Boolean).join(' · ') || undefined} />
                 <ReviewRow label="Next of Kin" value={form.nextOfKin ? `${form.nextOfKin} · ${form.nextOfKinPhone}` : undefined} />
                 <ReviewRow label="MCI"         value={form.massCasualty ? `Yes (${form.massCasualtyCount || '?'} casualties)` : undefined} />
@@ -1068,6 +1138,12 @@ export default function NewIncidentWizard() {
               <ReviewCard title="Step 1 · Incident Details" onEdit={() => setStep(1)}>
                 <ReviewRow label="Nature"    value={[form.alertNature, form.alertNatureDetail].filter(Boolean).join(' → ') || undefined} />
                 <ReviewRow label="Complaint" value={form.chiefComplaint} />
+                <ReviewRow label="Temp"      value={vitals.temperature} />
+                <ReviewRow label="Pulse"     value={vitals.pulseRate} />
+                <ReviewRow label="Resp. Rate" value={vitals.respirationRate} />
+                <ReviewRow label="BP"        value={vitals.bp} />
+                <ReviewRow label="SPO₂"      value={vitals.spo2} />
+                <ReviewRow label="FH"        value={vitals.fh} />
                 <ReviewRow label="Pre-hosp." value={form.preHospitalManagement} />
                 <ReviewRow label="Referral"  value={form.placeOfReferral} />
               </ReviewCard>

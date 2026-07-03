@@ -50,8 +50,11 @@ export default function QueuePage() {
   const filteredIncidents = (
     incidents?.filter((inc) => {
       const matchesSearch =
-        inc.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        inc.chiefComplaint.toLowerCase().includes(searchTerm.toLowerCase());
+  inc.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  inc.chiefComplaint.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (inc.patientName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (inc.patientContact ?? '').includes(searchTerm) ||
+  (inc.nextOfKinPhone ?? '').includes(searchTerm);
       const matchesStatus = statusFilter === 'ALL' || inc.status === statusFilter;
       return matchesSearch && matchesStatus;
     }) ?? []
@@ -77,7 +80,7 @@ export default function QueuePage() {
             <MagnifyingGlass size={16} />
             <input
               type="text"
-              placeholder="Search case number or complaint…"
+              placeholder="Search case number, complaint, patient name or phone…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
