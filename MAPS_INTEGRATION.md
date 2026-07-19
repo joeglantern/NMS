@@ -20,12 +20,15 @@ For the mobile app specifically:
 
 ## Web app (already set up)
 
-The web app reads the API key from the environment variable `VITE_GOOGLE_MAPS_KEY`. Once that's filled in on the server, two things activate automatically:
+The web app reads the API key from the environment variable `VITE_GOOGLE_MAPS_KEY`. Once that's filled in on the server, three things activate automatically:
 
-1. Location search in the watcher's incident form switches from Nominatim to Google Places
-2. When a vehicle is en-route to a scene, the incident detail page shows a live ETA card — travel time with traffic, distance, and the first turn instruction
+1. All maps (dispatcher dashboard, fleet, incident detail, facility picker, incident wizard) render on Google Maps vector tiles instead of the free OSM/Carto raster tiles, with a live traffic toggle
+2. Location search in the watcher's incident form switches from Nominatim to Google Places
+3. When a vehicle is en-route to a scene, the incident detail page shows a live ETA card — travel time with traffic, distance, and the first turn instruction
 
-Without the key, both features fall back gracefully (Nominatim search, no ETA card).
+Without the key (or if Google auth fails, e.g. referrer blocked), everything falls back gracefully to the Leaflet/OSM map, Nominatim search, and no ETA card.
+
+Optional: set `VITE_GOOGLE_MAPS_MAP_ID` to a Map ID created in the Cloud Console for custom cloud-based map styling; defaults to `DEMO_MAP_ID` otherwise.
 
 ---
 

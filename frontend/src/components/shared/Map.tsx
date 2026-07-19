@@ -1,7 +1,8 @@
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { loadMapsLibrary, mapsReady } from '../../lib/mapsLoader';
 import { LiveVehicle, VehicleTrackingStatus, getVehicleTrackingStatus } from '../../hooks/useVehicleTracking';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -50,7 +51,7 @@ function secsAgo(ts: string): string {
   return `${Math.round(s / 3600)}h ago`;
 }
 
-function createVehicleIcon(_heading: number, status: VehicleTrackingStatus, speed: number): L.DivIcon {
+function vehicleSvg(status: VehicleTrackingStatus, speed: number): string {
   const p = STATUS_PALETTE[status];
   const isMoving = status === 'ready';
   const pulse = isMoving
@@ -62,8 +63,7 @@ function createVehicleIcon(_heading: number, status: VehicleTrackingStatus, spee
     ? `<circle cx="62" cy="8" r="9" fill="${p.bg}" stroke="white" stroke-width="1.5"/>
        <text x="62" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="7" font-weight="800">${Math.round(speed)}</text>` : '';
 
-  return L.divIcon({
-   html: `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="31" viewBox="0 0 74 44" overflow="visible">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="31" viewBox="0 0 74 44" overflow="visible">
       ${pulse}
 
       <!-- Ambulance body -->
@@ -110,7 +110,12 @@ function createVehicleIcon(_heading: number, status: VehicleTrackingStatus, spee
       <circle cx="55" cy="35" r="1.5" fill="#94a3b8"/>
 
       ${badge}
-    </svg>`,
+    </svg>`;
+}
+
+function createVehicleIcon(status: VehicleTrackingStatus, speed: number): L.DivIcon {
+  return L.divIcon({
+    html: vehicleSvg(status, speed),
     className: '',
     iconSize: [52, 31],
     iconAnchor: [26, 25],
@@ -135,7 +140,229 @@ function vehiclePopupHtml(v: LiveVehicle, status: VehicleTrackingStatus): string
   </div>`;
 }
 
-// ── Leaflet internals ─────────────────────────────────────────────────────────
+// ── Google Maps canvas ────────────────────────────────────────────────────────
+
+// AdvancedMarkerElement requires a mapId; DEMO_MAP_ID is Google's documented
+// default for apps without a custom cloud style. Override via env if one is
+// created in the Cloud Console later.
+const MAP_ID = (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined) || 'DEMO_MAP_ID';
+
+interface VehicleEntry {
+  marker: google.maps.marker.AdvancedMarkerElement;
+  status: VehicleTrackingStatus;
+  speed: number;
+  vehicle: LiveVehicle;
+}
+
+interface GoogleCanvasProps {
+  center: [number, number];
+  zoom: number;
+  markers: MapMarker[];
+  vehicleMarkers: LiveVehicle[];
+  layerType: 'light' | 'dark' | 'street';
+  onLocationSelect?: (lat: number, lng: number) => void;
+  /** Fired on vehicle marker click; parent decides between dispatch panel and fly-to */
+  onVehicleMarkerClick: (v: LiveVehicle) => void;
+  /** When false, vehicle clicks open the default info window */
+  suppressVehiclePopup: boolean;
+  flyTarget: [number, number, number] | null;
+  onFail: () => void;
+}
+
+function GoogleCanvas({
+  center, zoom, markers, vehicleMarkers, layerType,
+  onLocationSelect, onVehicleMarkerClick, suppressVehiclePopup, flyTarget, onFail,
+}: GoogleCanvasProps) {
+  const divRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const infoRef = useRef<google.maps.InfoWindow | null>(null);
+  const trafficRef = useRef<google.maps.TrafficLayer | null>(null);
+  const vehiclePool = useRef<Record<string, VehicleEntry>>({});
+  const staticPool = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const staticSigRef = useRef('');
+  const [ready, setReady] = useState(false);
+  const [traffic, setTraffic] = useState(false);
+
+  const lat = center[0];
+  const lng = center[1];
+
+  // Init once
+  useEffect(() => {
+    let cancelled = false;
+    // Google reports bad key / blocked referrer through this global — fall back to Leaflet
+    (window as any).gm_authFailure = () => onFail();
+    (async () => {
+      try {
+        await loadMapsLibrary('maps');
+        await loadMapsLibrary('marker');
+        if (cancelled || !divRef.current || mapRef.current) return;
+        mapRef.current = new google.maps.Map(divRef.current, {
+          center: { lat, lng },
+          zoom,
+          mapId: MAP_ID,
+          colorScheme: (layerType === 'dark' ? 'DARK' : 'LIGHT') as google.maps.ColorScheme,
+          disableDefaultUI: true,
+          zoomControl: true,
+          fullscreenControl: true,
+          gestureHandling: 'greedy',
+          clickableIcons: false,
+        });
+        infoRef.current = new google.maps.InfoWindow({ maxWidth: 260 });
+        setReady(true);
+      } catch {
+        if (!cancelled) onFail();
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync centre/zoom only when the actual values change — live-data re-renders
+  // must not snap the view back while the dispatcher is panning
+  useEffect(() => { if (ready) mapRef.current?.setCenter({ lat, lng }); }, [ready, lat, lng]);
+  useEffect(() => { if (ready) mapRef.current?.setZoom(zoom); }, [ready, zoom]);
+
+  // Fly-to (vehicle strip / fleet table / marker clicks)
+  useEffect(() => {
+    if (!ready || !flyTarget || !mapRef.current) return;
+    mapRef.current.panTo({ lat: flyTarget[0], lng: flyTarget[1] });
+    mapRef.current.setZoom(16);
+  }, [ready, flyTarget]);
+
+  // Click-to-select (incident wizard, facility pin)
+  useEffect(() => {
+    if (!ready || !onLocationSelect || !mapRef.current) return;
+    const listener = mapRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+      if (e.latLng) onLocationSelect(e.latLng.lat(), e.latLng.lng());
+    });
+    return () => listener.remove();
+  }, [ready, onLocationSelect]);
+
+  // Traffic layer toggle
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    if (traffic) {
+      trafficRef.current = trafficRef.current ?? new google.maps.TrafficLayer();
+      trafficRef.current.setMap(mapRef.current);
+    } else {
+      trafficRef.current?.setMap(null);
+    }
+  }, [ready, traffic]);
+
+  // Static markers (incidents / facilities) — rebuilt only when they actually change
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const sig = markers.map(m => `${m.id}:${m.lat}:${m.lng}:${m.title}`).join('|');
+    if (sig === staticSigRef.current) return;
+    staticSigRef.current = sig;
+
+    staticPool.current.forEach(m => { m.map = null; });
+    staticPool.current = markers.map(m => {
+      const pin = new google.maps.marker.PinElement({
+        background: '#dc2626', borderColor: '#7f1d1d', glyphColor: '#ffffff', scale: 1.1,
+      });
+      const am = new google.maps.marker.AdvancedMarkerElement({
+        map: mapRef.current,
+        position: { lat: m.lat, lng: m.lng },
+        content: pin.element,
+        title: m.title,
+        zIndex: 10,
+      });
+      am.addListener('click', () => {
+        const el = document.createElement('div');
+        el.style.cssText = 'font-family:system-ui,sans-serif;font-weight:700;font-size:13px;padding:2px';
+        el.textContent = m.title;
+        infoRef.current?.setContent(el);
+        infoRef.current?.open({ map: mapRef.current!, anchor: am });
+      });
+      return am;
+    });
+  }, [ready, markers]);
+
+  // Vehicle markers — pooled by vehicleId so positions update in place without
+  // recreating DOM (keeps the pulse animation smooth on live updates)
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const pool = vehiclePool.current;
+    const seen = new Set<string>();
+
+    vehicleMarkers.forEach(v => {
+      const status = getVehicleTrackingStatus(v);
+      const speed = Math.round(v.speed);
+      seen.add(v.vehicleId);
+      const existing = pool[v.vehicleId];
+
+      if (existing) {
+        existing.vehicle = v;
+        existing.marker.position = { lat: v.lat, lng: v.lng };
+        if (existing.status !== status || existing.speed !== speed) {
+          const el = document.createElement('div');
+          el.style.cssText = 'cursor:pointer;transform:translateY(28%)';
+          el.innerHTML = vehicleSvg(status, v.speed);
+          existing.marker.content = el;
+          existing.status = status;
+          existing.speed = speed;
+        }
+        return;
+      }
+
+      const el = document.createElement('div');
+      el.style.cssText = 'cursor:pointer;transform:translateY(28%)';
+      el.innerHTML = vehicleSvg(status, v.speed);
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map: mapRef.current,
+        position: { lat: v.lat, lng: v.lng },
+        content: el,
+        title: v.registration,
+        zIndex: 20,
+      });
+      const entry: VehicleEntry = { marker, status, speed, vehicle: v };
+      marker.addListener('click', () => {
+        onVehicleMarkerClick(entry.vehicle);
+        if (!suppressVehiclePopup) {
+          const wrap = document.createElement('div');
+          wrap.innerHTML = vehiclePopupHtml(entry.vehicle, getVehicleTrackingStatus(entry.vehicle));
+          infoRef.current?.setContent(wrap);
+          infoRef.current?.open({ map: mapRef.current!, anchor: marker });
+        }
+      });
+      pool[v.vehicleId] = entry;
+    });
+
+    Object.keys(pool).forEach(id => {
+      if (!seen.has(id)) {
+        pool[id].marker.map = null;
+        delete pool[id];
+      }
+    });
+  }, [ready, vehicleMarkers, onVehicleMarkerClick, suppressVehiclePopup]);
+
+  return (
+    <>
+      <div ref={divRef} className="h-full w-full" />
+      {!ready && (
+        <div className="absolute inset-0 z-[500] flex items-center justify-center bg-slate-100 animate-pulse">
+          <span className="text-xs font-semibold text-slate-400 tracking-wide">Loading map…</span>
+        </div>
+      )}
+      {ready && (
+        <button
+          onClick={() => setTraffic(t => !t)}
+          className={`absolute top-3 left-3 z-[1000] px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase shadow-lg border transition-all ${
+            traffic
+              ? 'bg-emerald-600 text-white border-emerald-700'
+              : 'bg-white/95 text-slate-600 border-slate-200 hover:bg-white'
+          }`}
+          title="Toggle live traffic"
+        >
+          Traffic
+        </button>
+      )}
+    </>
+  );
+}
+
+// ── Leaflet fallback internals ────────────────────────────────────────────────
 
 // Fly-to controller: reacts to a [lat, lng, timestamp] tuple so re-clicking same vehicle re-flies
 function FlyToController({ target }: { target: [number, number, number] | null }) {
@@ -146,15 +373,94 @@ function FlyToController({ target }: { target: [number, number, number] | null }
   return null;
 }
 
-function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
+function MapUpdater({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
-  useEffect(() => { map.setView(center, zoom); }, [center, zoom, map]);
+  useEffect(() => { map.setView([lat, lng], zoom); }, [lat, lng, zoom, map]);
+  return null;
+}
+
+// Leaflet renders blank tile patches when its container is sized/resized after
+// init (tabs, expanding panels, modals) — re-measure whenever the box changes
+function ResizeFix() {
+  const map = useMap();
+  useEffect(() => {
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    const t = setTimeout(() => map.invalidateSize(), 150);
+    return () => { observer.disconnect(); clearTimeout(t); };
+  }, [map]);
   return null;
 }
 
 function ClickHandler({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
   useMapEvents({ click(e) { onLocationSelect(e.latlng.lat, e.latlng.lng); } });
   return null;
+}
+
+const TILE_URLS = {
+  light:  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  dark:   'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+};
+
+interface LeafletCanvasProps {
+  center: [number, number];
+  zoom: number;
+  markers: MapMarker[];
+  vehicleMarkers: LiveVehicle[];
+  layerType: 'light' | 'dark' | 'street';
+  onLocationSelect?: (lat: number, lng: number) => void;
+  onVehicleClick?: (v: LiveVehicle) => void;
+  onVehicleMarkerClick: (v: LiveVehicle) => void;
+  flyTarget: [number, number, number] | null;
+}
+
+function LeafletCanvas({
+  center, zoom, markers, vehicleMarkers, layerType,
+  onLocationSelect, onVehicleClick, onVehicleMarkerClick, flyTarget,
+}: LeafletCanvasProps) {
+  return (
+    <MapContainer
+      center={center}
+      zoom={zoom}
+      scrollWheelZoom={true}
+      style={{ height: '100%', width: '100%', zIndex: 0 }}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url={TILE_URLS[layerType]}
+      />
+      <MapUpdater lat={center[0]} lng={center[1]} zoom={zoom} />
+      <FlyToController target={flyTarget} />
+      <ResizeFix />
+      {onLocationSelect && <ClickHandler onLocationSelect={onLocationSelect} />}
+
+      {markers.map(m => (
+        <Marker key={m.id} position={[m.lat, m.lng]} icon={incidentIcon}>
+          <Popup><div className="font-sans font-bold text-sm">{m.title}</div></Popup>
+        </Marker>
+      ))}
+
+      {vehicleMarkers.map(v => {
+        const status = getVehicleTrackingStatus(v);
+        return (
+          <Marker
+            key={`${v.vehicleId}-${status}`}
+            position={[v.lat, v.lng]}
+            icon={createVehicleIcon(status, v.speed)}
+            eventHandlers={{ click: () => onVehicleMarkerClick(v) }}
+          >
+            {/* Suppress default popup when a click handler is wired — parent shows dispatch panel */}
+            {!onVehicleClick && (
+              <Popup maxWidth={220}>
+                <div dangerouslySetInnerHTML={{ __html: vehiclePopupHtml(v, status) }} />
+              </Popup>
+            )}
+          </Marker>
+        );
+      })}
+    </MapContainer>
+  );
 }
 
 // ── Overlay: LIVE badge ───────────────────────────────────────────────────────
@@ -317,12 +623,6 @@ interface MapProps {
   children?: ReactNode;
 }
 
-const TILE_URLS = {
-  light:  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-  dark:   'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-};
-
 export default function Map({
   center,
   zoom = 13,
@@ -341,64 +641,56 @@ export default function Map({
 }: MapProps) {
   // [lat, lng, timestamp] — timestamp ensures re-clicking same vehicle re-fires the effect
   const [flyTarget, setFlyTarget] = useState<[number, number, number] | null>(null);
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const useGoogle = mapsReady && !googleFailed;
+
+  const focusLat = focusPosition?.[0];
+  const focusLng = focusPosition?.[1];
 
   // React to external focusPosition changes (e.g. fleet table row click)
   useEffect(() => {
-    if (focusPosition) {
-      setFlyTarget([focusPosition[0], focusPosition[1], Date.now()]);
+    if (focusLat != null && focusLng != null) {
+      setFlyTarget([focusLat, focusLng, Date.now()]);
     }
-  }, [focusPosition]);
+  }, [focusLat, focusLng]);
 
   function flyToVehicle(v: LiveVehicle) {
     setFlyTarget([v.lat, v.lng, Date.now()]);
   }
 
+  function handleVehicleMarkerClick(v: LiveVehicle) {
+    setFlyTarget([v.lat, v.lng, Date.now()]);
+    onVehicleClick?.(v);
+  }
+
   return (
     <div className={`relative z-0 ${className}`}>
-      <MapContainer
-        center={center}
-        zoom={zoom}
-        scrollWheelZoom={true}
-        style={{ height: '100%', width: '100%', zIndex: 0 }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url={TILE_URLS[layerType]}
+      {useGoogle ? (
+        <GoogleCanvas
+          center={center}
+          zoom={zoom}
+          markers={markers}
+          vehicleMarkers={vehicleMarkers}
+          layerType={layerType}
+          onLocationSelect={onLocationSelect}
+          onVehicleMarkerClick={handleVehicleMarkerClick}
+          suppressVehiclePopup={!!onVehicleClick}
+          flyTarget={flyTarget}
+          onFail={() => setGoogleFailed(true)}
         />
-        <MapUpdater center={center} zoom={zoom} />
-        <FlyToController target={flyTarget} />
-        {onLocationSelect && <ClickHandler onLocationSelect={onLocationSelect} />}
-
-        {markers.map(m => (
-          <Marker key={m.id} position={[m.lat, m.lng]} icon={incidentIcon}>
-            <Popup><div className="font-sans font-bold text-sm">{m.title}</div></Popup>
-          </Marker>
-        ))}
-
-        {vehicleMarkers.map(v => {
-          const status = getVehicleTrackingStatus(v);
-          return (
-            <Marker
-              key={`${v.vehicleId}-${status}`}
-              position={[v.lat, v.lng]}
-              icon={createVehicleIcon(v.heading, status, v.speed)}
-              eventHandlers={{
-                click: () => {
-                  setFlyTarget([v.lat, v.lng, Date.now()]);
-                  onVehicleClick?.(v);
-                },
-              }}
-            >
-              {/* Suppress default popup when a click handler is wired — parent shows dispatch panel */}
-              {!onVehicleClick && (
-                <Popup maxWidth={220}>
-                  <div dangerouslySetInnerHTML={{ __html: vehiclePopupHtml(v, status) }} />
-                </Popup>
-              )}
-            </Marker>
-          );
-        })}
-      </MapContainer>
+      ) : (
+        <LeafletCanvas
+          center={center}
+          zoom={zoom}
+          markers={markers}
+          vehicleMarkers={vehicleMarkers}
+          layerType={layerType}
+          onLocationSelect={onLocationSelect}
+          onVehicleClick={onVehicleClick}
+          onVehicleMarkerClick={handleVehicleMarkerClick}
+          flyTarget={flyTarget}
+        />
+      )}
 
       {/* Overlays */}
       {showLiveBadge && (
