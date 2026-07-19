@@ -43,7 +43,7 @@ export default function PartnerDashboardPage() {
   const resolvedCount = incidents.filter(i => i.status === 'RESOLVED').length;
 
   const mapMarkers = incidents
-    .filter(i => i.lat && i.lng)
+    .filter(i => i.lat && i.lng && i.status !== 'RESOLVED' && i.status !== 'DRAFT')
     .map(i => ({ id: i.id, lat: i.lat!, lng: i.lng!, title: i.chiefComplaint, type: 'incident' as const }));
 
   const resourceRequestMutation = useMutation({

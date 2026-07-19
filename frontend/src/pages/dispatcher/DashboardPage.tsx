@@ -70,8 +70,9 @@ export default function DashboardPage() {
     (i) => i.status === 'DISPATCH_HANDLING' || i.status === 'DISPATCHED'
   ).length;
 
+  // Only live cases belong on the ops map — resolved/draft pins are clutter
   const incidentMarkers = recentIncidents
-    .filter((i) => i.lat && i.lng)
+    .filter((i) => i.lat && i.lng && i.status !== 'RESOLVED' && i.status !== 'DRAFT')
     .map((inc) => ({
       id: inc.id,
       lat: inc.lat!,

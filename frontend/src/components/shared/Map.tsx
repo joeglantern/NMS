@@ -140,6 +140,24 @@ function vehiclePopupHtml(v: LiveVehicle, status: VehicleTrackingStatus): string
   </div>`;
 }
 
+// ── App theme tracking ────────────────────────────────────────────────────────
+
+// AppShell writes the active theme to <html data-theme="…">; maps follow it so
+// a dark UI never shows a glaring light map
+function useAppTheme(): 'light' | 'dark' {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
+
 // ── Google Maps canvas ────────────────────────────────────────────────────────
 
 // AdvancedMarkerElement requires a mapId; DEMO_MAP_ID is Google's documented
@@ -644,6 +662,10 @@ export default function Map({
   const [googleFailed, setGoogleFailed] = useState(false);
   const useGoogle = mapsReady && !googleFailed;
 
+  // App dark theme wins over the page's requested layer
+  const appTheme = useAppTheme();
+  const effectiveLayer = appTheme === 'dark' ? 'dark' : layerType;
+
   const focusLat = focusPosition?.[0];
   const focusLng = focusPosition?.[1];
 
@@ -667,11 +689,12 @@ export default function Map({
     <div className={`relative z-0 ${className}`}>
       {useGoogle ? (
         <GoogleCanvas
+          key={`gmap-${effectiveLayer === 'dark' ? 'dark' : 'light'}`}
           center={center}
           zoom={zoom}
           markers={markers}
           vehicleMarkers={vehicleMarkers}
-          layerType={layerType}
+          layerType={effectiveLayer}
           onLocationSelect={onLocationSelect}
           onVehicleMarkerClick={handleVehicleMarkerClick}
           suppressVehiclePopup={!!onVehicleClick}
@@ -684,7 +707,7 @@ export default function Map({
           zoom={zoom}
           markers={markers}
           vehicleMarkers={vehicleMarkers}
-          layerType={layerType}
+          layerType={effectiveLayer}
           onLocationSelect={onLocationSelect}
           onVehicleClick={onVehicleClick}
           onVehicleMarkerClick={handleVehicleMarkerClick}
