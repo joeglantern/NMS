@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { IncidentStatus, Role } from '../../shared/types/index.js';
+import { IncidentStatus, Role, TaskStatus, VehicleStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 
 export class IncidentService {
@@ -529,13 +529,37 @@ export class IncidentService {
       throw new BadRequestError('This incident is already closed');
     }
 
-    const updated = await this.app.prisma.incident.update({
-      where: { id },
-      data: {
-        status: IncidentStatus.RESOLVED,
-        closureReason: reason,
-        closedById: user.userId,
+    const activeTasks = await this.app.prisma.task.findMany({
+      where: {
+        incidentId: id,
+        status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
       },
+    });
+
+    const now = new Date();
+
+    const updated = await this.app.prisma.$transaction(async (tx) => {
+      const inc = await tx.incident.update({
+        where: { id },
+        data: {
+          status: IncidentStatus.RESOLVED,
+          closureReason: reason,
+          closedById: user.userId,
+        },
+      });
+
+      for (const task of activeTasks) {
+        await tx.task.update({
+          where: { id: task.id },
+          data: { status: TaskStatus.COMPLETED, completedAt: now },
+        });
+        await tx.vehicle.update({
+          where: { id: task.vehicleId },
+          data: { status: VehicleStatus.READY },
+        });
+      }
+
+      return inc;
     });
 
     await this.writeAudit({
@@ -552,6 +576,18 @@ export class IncidentService {
       .to(`role:${Role.ADMIN}`)
       .to(`role:${Role.SUPER_ADMIN}`)
       .emit('incident:closed', { id, caseNumber: incident.caseNumber, reason, closedBy: user.role });
+
+    for (const task of activeTasks) {
+      const updatedTask = await this.app.prisma.task.findUnique({ where: { id: task.id } });
+      if (!updatedTask) continue;
+
+      let updateRoom = this.app.io
+        .to(`user:${task.driverId}`)
+        .to(`role:${Role.DISPATCHER}`);
+      if (task.emtId) updateRoom = updateRoom.to(`user:${task.emtId}`);
+      if (task.nurseId) updateRoom = updateRoom.to(`user:${task.nurseId}`);
+      updateRoom.emit('task:updated', updatedTask);
+    }
 
     return updated;
   }
