@@ -111,6 +111,7 @@ model User {
   currentNurseVehicles  Vehicle[] @relation("VehicleCurrentNurse")
 
   uploadedPatientCareReports PatientCareReport[] @relation("UserUploadedPatientCareReports")
+  checkIns                   CheckIn[]           @relation("UserCheckIns")
 
   @@map("users")
 }
@@ -297,9 +298,34 @@ model Vehicle {
   currentNurseId  String? @map("current_nurse_id")
   currentNurse    User?   @relation("VehicleCurrentNurse", fields: [currentNurseId], references: [id])
 
-  tasks Task[]
+  tasks    Task[]
+  checkIns CheckIn[]
 
   @@map("vehicles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CheckIn — a crew member (driver/EMT/nurse) starting a shift on a vehicle.
+// Captures an accountability selfie + GPS location at the moment of check-in.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CheckIn {
+  id          String   @id @default(uuid())
+  role        Role
+  lat         Float
+  lng         Float
+  selfiePath  String   @map("selfie_path")
+  checkedInAt DateTime @default(now()) @map("checked_in_at")
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  userId String @map("user_id")
+  user   User   @relation("UserCheckIns", fields: [userId], references: [id])
+
+  @@index([vehicleId])
+  @@index([userId])
+  @@map("check_ins")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

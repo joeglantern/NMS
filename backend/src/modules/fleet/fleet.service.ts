@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { Prisma } from '../../generated/prisma/index.js';
 import { Coordinates, Role } from '../../shared/types/index.js';
 import { BadRequestError, NotFoundError } from '../../shared/errors/AppError.js';
+import { createWriteStream, promises as fs } from 'node:fs';
+import path from 'node:path';
 
 const crewInclude = {
   currentDriver: { select: { id: true, name: true, phone: true } },
@@ -71,22 +73,88 @@ export class FleetService {
     throw new BadRequestError('Role cannot check in to a vehicle');
   }
 
+  private checkinDir() {
+    return path.resolve(process.cwd(), 'uploads', 'checkins');
+  }
+
+  private async ensureCheckinDir() {
+    await fs.mkdir(this.checkinDir(), { recursive: true });
+  }
+
+  /** Absolute path to a stored check-in selfie (for streaming back to the web app). */
+  async getCheckIn(id: string) {
+    const checkIn = await this.app.prisma.checkIn.findUnique({ where: { id } });
+    if (!checkIn) throw new NotFoundError('Check-in not found');
+    return checkIn;
+  }
+
+  checkinSelfieAbsolutePath(selfiePath: string) {
+    return path.resolve(this.checkinDir(), path.basename(selfiePath));
+  }
+
+  /** Recent check-in events, for dispatcher/admin accountability views. */
+  async listCheckIns(filter: { vehicleId?: string; limit?: number }) {
+    return this.app.prisma.checkIn.findMany({
+      where: filter.vehicleId ? { vehicleId: filter.vehicleId } : {},
+      orderBy: { checkedInAt: 'desc' },
+      take: Math.min(filter.limit ?? 50, 200),
+      include: {
+        user: { select: { id: true, name: true, phone: true, role: true } },
+        vehicle: { select: { id: true, registrationNumber: true } },
+      },
+    });
+  }
+
   /**
    * Crew member (driver/EMT/nurse) checks in to a vehicle at shift start.
    * Clears any previous assignment for this user on other vehicles.
    */
-  async checkInToCrew(vehicleId: string, userId: string, role: Role) {
+  async checkInToCrew(
+    vehicleId: string,
+    userId: string,
+    role: Role,
+    location: { lat: number; lng: number },
+    selfie: { filename: string; mimetype: string; file: NodeJS.ReadableStream }
+  ) {
     const field = this.crewField(role);
 
     const vehicle = await this.app.prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (!vehicle) throw new NotFoundError('Vehicle not found');
 
-    // Clear user from any vehicle they were previously checked into
+    // 1. Persist the accountability selfie to disk
+    await this.ensureCheckinDir();
+    const ext = path.extname(selfie.filename) || '.jpg';
+    const safeExt = ext.length <= 10 ? ext : '.jpg';
+    const storedName = `${userId}-${Date.now()}${safeExt}`;
+    const storedPath = path.join(this.checkinDir(), storedName);
+
+    await new Promise<void>((resolve, reject) => {
+      const out = createWriteStream(storedPath);
+      selfie.file.pipe(out);
+      out.on('finish', () => resolve());
+      out.on('error', reject);
+      selfie.file.on('error', reject);
+    });
+
+    // 2. Clear user from any vehicle they were previously checked into
     await this.app.prisma.vehicle.updateMany({
       where: { [field]: userId },
       data: { [field]: null },
     });
 
+    // 3. Record the check-in event (selfie + GPS at shift start)
+    await this.app.prisma.checkIn.create({
+      data: {
+        vehicleId,
+        userId,
+        role,
+        lat: location.lat,
+        lng: location.lng,
+        selfiePath: storedName,
+      },
+    });
+
+    // 4. Set the crew FK on the vehicle (unchanged live-assignment behaviour)
     return this.app.prisma.vehicle.update({
       where: { id: vehicleId },
       data: { [field]: userId },
