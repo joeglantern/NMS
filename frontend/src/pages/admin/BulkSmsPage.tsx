@@ -10,7 +10,6 @@ import { useNotificationStore } from '../../stores/notificationStore';
 
 const inputCls = 'w-full border rounded-xl px-4 py-3 text-sm font-semibold outline-none transition-all';
 const inputStyle = { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' };
-const labelCls = 'block text-[10px] font-black uppercase tracking-widest mb-2';
 const card = 'rounded-xl border shadow-sm';
 const cardStyle = { background: 'var(--surface)', borderColor: 'var(--border)' };
 
