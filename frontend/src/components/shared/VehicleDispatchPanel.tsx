@@ -78,7 +78,17 @@ export default function VehicleDispatchPanel({ clickedVehicle, onClose }: Props)
   });
 
   const dbVehicle = vehicles.find(v => v.id === clickedVehicle.vehicleId);
-  const trackingStatus = getVehicleTrackingStatus(clickedVehicle);
+  // Badge must reflect the DB source of truth (same data the dispatch button uses),
+  // not the possibly-stale live tracking map — otherwise it can wrongly read "engaged".
+  const effectiveVehicle: LiveVehicle = dbVehicle
+    ? {
+        ...clickedVehicle,
+        dbStatus: (dbVehicle.status as LiveVehicle['dbStatus']),
+        isActive: dbVehicle.isActive,
+        hasDriver: !!dbVehicle.currentDriver,
+      }
+    : clickedVehicle;
+  const trackingStatus = getVehicleTrackingStatus(effectiveVehicle);
   const hasDriver = !!dbVehicle?.currentDriver;
   const isVehicleBusy = dbVehicle?.status === 'BUSY';
   const isLoading = loadingVehicles || loadingIncidents;

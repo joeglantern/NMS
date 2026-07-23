@@ -52,29 +52,47 @@ export function useVehicleTracking() {
     setLivePositions(prev => {
       const next = new Map(prev);
       for (const v of vehicles) {
-        if (!v.lastLat || !v.lastLng) continue;
         const existing = next.get(v.id);
+        const hasCoords = v.lastLat != null && v.lastLng != null;
+        // Can't place a brand-new marker without coordinates, but we can still
+        // keep the operational status of an already-tracked vehicle in sync.
+        if (!existing && !hasCoords) continue;
+
         const dbTs = new Date(v.lastLocationAt ?? 0).getTime();
         const existingTs = existing ? new Date(existing.timestamp).getTime() : 0;
-        // Always update hasDriver from DB (driver check-ins aren't pushed via socket)
+        // Operational status is the DB's source of truth — driver check-ins and
+        // BUSY/READY transitions are NOT reliably pushed via the GPS socket, so
+        // ALWAYS sync them from the DB (never gate them on the GPS timestamp).
         const hasDriver = !!v.currentDriver;
-        if (!existing || dbTs > existingTs) {
+        const dbStatus = (v.status as LiveVehicle['dbStatus']) ?? existing?.dbStatus ?? 'READY';
+
+        if (!existing) {
           next.set(v.id, {
             vehicleId: v.id,
             imei: v.imei,
             registration: v.registrationNumber,
-            lat: v.lastLat,
-            lng: v.lastLng,
-            speed: existing?.speed ?? 0,
-            heading: existing?.heading ?? 0,
-            ignition: existing?.ignition ?? false,
+            lat: v.lastLat as number,
+            lng: v.lastLng as number,
+            speed: 0,
+            heading: 0,
+            ignition: false,
             timestamp: v.lastLocationAt ?? new Date().toISOString(),
-            dbStatus: (v.status as LiveVehicle['dbStatus']) ?? 'READY',
+            dbStatus,
             isActive: v.isActive,
             hasDriver,
           });
-        } else if (existing.hasDriver !== hasDriver) {
-          next.set(v.id, { ...existing, hasDriver });
+        } else {
+          // Keep the fresher socket GPS position, but always refresh status.
+          const positionIsNewer = hasCoords && dbTs > existingTs;
+          next.set(v.id, {
+            ...existing,
+            ...(positionIsNewer
+              ? { lat: v.lastLat as number, lng: v.lastLng as number, timestamp: v.lastLocationAt ?? existing.timestamp }
+              : {}),
+            dbStatus,
+            isActive: v.isActive,
+            hasDriver,
+          });
         }
       }
       return next;
