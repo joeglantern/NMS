@@ -1,10 +1,13 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { requireRole } from '../../shared/guards/requireRole.js';
 import { Role } from '../../shared/types/index.js';
+import { IncidentService } from '../incidents/incident.service.js';
 
 const gbvRoles = [Role.SUPER_ADMIN, Role.ADMIN, Role.DISPATCHER];
 
 export const gbvRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+  const incidentService = new IncidentService(app);
+
   app.addHook('preValidation', app.authenticate);
   app.addHook('preValidation', requireRole(gbvRoles));
 
@@ -28,6 +31,8 @@ export const gbvRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { id: request.params.id },
       data: { isGbvCase: true },
     });
+    // Now that it's a GBV case, auto-notify matching partners (deduped per case+tag).
+    incidentService.notifyPartnersForIncident(incident.id);
     return reply.send({ ok: true, data: incident });
   });
 

@@ -27,23 +27,30 @@ export class IncidentService {
     });
   }
 
+  /** Build the {{...}} template variables from an incident. */
+  private caseVars(i: {
+    caseNumber: string; locationName: string; subCounty: string; massCasualtyCount: number | null;
+    alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
+    alertAt: Date | null; createdAt: Date; lat: number | null; lng: number | null;
+  }) {
+    return {
+      caseNumber: i.caseNumber,
+      location: [i.locationName, i.subCounty].filter(Boolean).join(', '),
+      count: i.massCasualtyCount ?? undefined,
+      nature: [i.alertNature, i.alertNatureDetail].filter(Boolean).join(' – ') || i.chiefComplaint,
+      complaint: i.chiefComplaint,
+      time: this.formatAlertTime(i.alertAt ?? i.createdAt),
+      maps: i.lat != null && i.lng != null ? `Map: https://maps.google.com/?q=${i.lat},${i.lng}` : '',
+    };
+  }
+
   private notifyPartnersForFlags(incident: {
     id: string; caseNumber: string; locationName: string; subCounty: string;
     massCasualty: boolean; massCasualtyCount: number | null; isGbvCase: boolean;
     alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
     alertAt: Date | null; createdAt: Date; lat: number | null; lng: number | null;
   }): void {
-    const vars = {
-      caseNumber: incident.caseNumber,
-      location: [incident.locationName, incident.subCounty].filter(Boolean).join(', '),
-      count: incident.massCasualtyCount ?? undefined,
-      nature: [incident.alertNature, incident.alertNatureDetail].filter(Boolean).join(' – ') || incident.chiefComplaint,
-      complaint: incident.chiefComplaint,
-      time: this.formatAlertTime(incident.alertAt ?? incident.createdAt),
-      maps: incident.lat != null && incident.lng != null
-        ? `Map: https://maps.google.com/?q=${incident.lat},${incident.lng}`
-        : '',
-    };
+    const vars = this.caseVars(incident);
     (async () => {
       try {
         if (incident.isGbvCase) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
@@ -52,6 +59,31 @@ export class IncidentService {
         this.app.log.error({ err }, 'partner auto-notify failed');
       }
     })();
+  }
+
+  /** Fire-and-forget SMS to the SURVEILLANCE contact group for a surveillance alert. */
+  private notifySurveillanceGroup(incident: {
+    id: string; caseNumber: string; locationName: string; subCounty: string; massCasualtyCount: number | null;
+    alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
+    alertAt: Date | null; createdAt: Date; lat: number | null; lng: number | null;
+  }): void {
+    const vars = this.caseVars(incident);
+    (async () => {
+      try {
+        await this.sms.notifySurveillance({ incidentId: incident.id, vars });
+      } catch (err) {
+        this.app.log.error({ err }, 'surveillance auto-notify failed');
+      }
+    })();
+  }
+
+  /**
+   * Public entry so other modules (e.g. flagging a case GBV in the register)
+   * can trigger the same deduped partner notification.
+   */
+  async notifyPartnersForIncident(incidentId: string): Promise<void> {
+    const incident = await this.app.prisma.incident.findUnique({ where: { id: incidentId } });
+    if (incident) this.notifyPartnersForFlags(incident);
   }
 
   private async writeAudit(opts: {
@@ -175,6 +207,8 @@ export class IncidentService {
 
     // Auto-SMS matching partners when the case is flagged GBV or MCI.
     this.notifyPartnersForFlags(incident);
+    // Surveillance alert → SMS the surveillance team.
+    if (incident.surveillanceNote) this.notifySurveillanceGroup(incident);
 
     return incident;
   }
