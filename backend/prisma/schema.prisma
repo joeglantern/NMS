@@ -122,6 +122,10 @@ model User {
 
 model Incident {
   id             String         @id @default(uuid())
+  // Sequential human case number. caseSeq is a DB-assigned running number
+  // (1, 2, 3…); caseNumber is its display form "Case 001". The sweep resets
+  // the sequence so numbering starts fresh at Case 001.
+  caseSeq        Int            @unique @default(autoincrement()) @map("case_seq")
   caseNumber     String         @unique @map("case_number")
   status         IncidentStatus @default(DRAFT)
   chiefComplaint String         @map("chief_complaint") @db.Text

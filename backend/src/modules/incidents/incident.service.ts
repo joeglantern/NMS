@@ -1,17 +1,14 @@
 import { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { IncidentStatus, Role, TaskStatus, VehicleStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 
 export class IncidentService {
   constructor(private app: FastifyInstance) {}
 
-  private generateCaseNumber(): string {
-    const date = new Date();
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    const random = Math.floor(1000 + Math.random() * 9000);
-    return `EOC-INC-${yyyy}${mm}${dd}-${random}`;
+  /** Display form of the running case sequence, e.g. 1 -> "Case 001". */
+  private formatCaseNumber(seq: number): string {
+    return `Case ${String(seq).padStart(3, '0')}`;
   }
 
   private async writeAudit(opts: {
@@ -74,15 +71,15 @@ export class IncidentService {
       maternityVitals?: Record<string, any>;
     }
   ) {
-    const caseNumber = this.generateCaseNumber();
-
     const initialStatus = user.role === Role.WATCHER
       ? IncidentStatus.DRAFT
       : IncidentStatus.SUBMITTED;
 
-    const incident = await this.app.prisma.incident.create({
+    // Create with a unique placeholder, then set the human "Case NNN" from the
+    // DB-assigned caseSeq — this is collision-free and always in ascending order.
+    const created = await this.app.prisma.incident.create({
       data: {
-        caseNumber,
+        caseNumber: `PENDING-${randomUUID()}`,
         status: initialStatus,
         chiefComplaint: data.chiefComplaint,
         locationName: data.locationName,
@@ -116,6 +113,12 @@ export class IncidentService {
         assignedAgencyId: user.agencyId,
         watcherId: user.userId,
       },
+    });
+
+    const caseNumber = this.formatCaseNumber(created.caseSeq);
+    const incident = await this.app.prisma.incident.update({
+      where: { id: created.id },
+      data: { caseNumber },
     });
 
     await this.writeAudit({

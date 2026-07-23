@@ -5,8 +5,19 @@ import {
   Plus, Trash, FloppyDisk, Coins, CheckCircle, XCircle,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
-import { SmsContact, SmsMessage, SmsTemplate } from '../../types/api';
+import { Incident, SmsContact, SmsMessage, SmsTemplate } from '../../types/api';
 import { useNotificationStore } from '../../stores/notificationStore';
+
+// Fill {{caseNumber}}/{{location}}/{{count}}/{{nature}} from a real case.
+function fillFromCase(body: string, c: Incident): string {
+  const vars: Record<string, string> = {
+    caseNumber: c.caseNumber ?? '',
+    location: [c.locationName, c.subCounty].filter(Boolean).join(', '),
+    count: c.massCasualtyCount != null ? String(c.massCasualtyCount) : '',
+    nature: [c.alertNature, c.alertNatureDetail].filter(Boolean).join(' – ') || c.chiefComplaint || '',
+  };
+  return body.replace(/\{\{(\w+)\}\}/g, (_m, k) => vars[k] ?? '').replace(/\s{2,}/g, ' ').trim();
+}
 
 const inputCls = 'w-full border rounded-xl px-4 py-3 text-sm font-semibold outline-none transition-all';
 const inputStyle = { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' };
@@ -24,6 +35,7 @@ export default function BulkSmsPage() {
 
   const [tab, setTab] = useState<Tab>('groups');
   const [message, setMessage] = useState('');
+  const [selectedCaseId, setSelectedCaseId] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [partnerScope, setPartnerScope] = useState<string>('');
@@ -57,6 +69,19 @@ export default function BulkSmsPage() {
     queryFn: async () => (await api.get('/sms/logs?limit=100')).data.data as SmsMessage[],
     refetchInterval: 20_000,
   });
+
+  const { data: cases = [] } = useQuery({
+    queryKey: ['sms', 'cases'],
+    queryFn: async () => (await api.get('/incidents?limit=100')).data.data as Incident[],
+    staleTime: 30_000,
+  });
+
+  const selectedCase = cases.find(c => c.id === selectedCaseId) ?? null;
+  const hasUnfilledPlaceholders = /\{\{\w+\}\}/.test(message);
+
+  // Insert a template — filled from the selected case when one is chosen.
+  const insertTemplate = (body: string) =>
+    setMessage(selectedCase ? fillFromCase(body, selectedCase) : body);
 
   const groups = useMemo(() => {
     const map = new Map<string, number>();
@@ -181,17 +206,42 @@ export default function BulkSmsPage() {
               <h3 className="font-bold" style={{ color: 'var(--ink)' }}>Compose</h3>
             </div>
 
+            {/* Compose from a case — fills the template with real case details */}
+            <div className="mb-3">
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>
+                Compose from a case (optional)
+              </label>
+              <select
+                className={inputCls}
+                style={inputStyle}
+                value={selectedCaseId}
+                onChange={e => setSelectedCaseId(e.target.value)}
+              >
+                <option value="">— No case · write manually —</option>
+                {cases.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.caseNumber} · {c.locationName}{c.isGbvCase ? ' · GBV' : ''}{c.massCasualty ? ' · MCI' : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedCase && (
+                <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Pick a template below — it will be filled in with {selectedCase.caseNumber}'s details automatically.
+                </p>
+              )}
+            </div>
+
             {/* Template picker */}
             <div className="flex flex-wrap gap-2 mb-3">
               {templates.map(t => (
                 <button
                   key={t.key}
-                  onClick={() => setMessage(t.body)}
+                  onClick={() => insertTemplate(t.body)}
                   className="px-3 py-1.5 rounded-lg border text-xs font-bold transition-all"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink)', borderColor: 'var(--border)' }}
-                  title={`Insert ${t.label}`}
+                  title={selectedCase ? `Insert ${t.label} filled from ${selectedCase.caseNumber}` : `Insert ${t.label}`}
                 >
-                  {t.label}
+                  {selectedCase ? `Use: ${t.label}` : t.label}
                 </button>
               ))}
             </div>
@@ -199,13 +249,20 @@ export default function BulkSmsPage() {
             <textarea
               className={inputCls}
               style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }}
-              placeholder="Type your message… placeholders like {{caseNumber}} are only substituted for automated sends."
+              placeholder="Type your message, or pick a case + template above to compose it for you."
               value={message}
               onChange={e => setMessage(e.target.value)}
             />
-            <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
-              {message.length} chars · {Math.max(1, Math.ceil(message.length / 160))} SMS segment(s)
-            </p>
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                {message.length} chars · {Math.max(1, Math.ceil(message.length / 160))} SMS segment(s)
+              </p>
+              {hasUnfilledPlaceholders && (
+                <p className="text-[11px] font-bold text-amber-500">
+                  ⚠ Message still has {'{{…}}'} — pick a case or edit them out before sending.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Recipients */}
@@ -267,7 +324,7 @@ export default function BulkSmsPage() {
               )}
               <button
                 onClick={() => sendMutation.mutate()}
-                disabled={!message.trim() || !hasRecipients || sendMutation.isPending}
+                disabled={!message.trim() || !hasRecipients || hasUnfilledPlaceholders || sendMutation.isPending}
                 className="ml-auto flex items-center gap-2 px-6 py-3 bg-brand-teal text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-40"
               >
                 <PaperPlaneRight size={16} weight="fill" />
