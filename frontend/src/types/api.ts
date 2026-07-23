@@ -218,6 +218,34 @@ export interface PatientCareReport {
   createdAt: string;
 }
 
+export interface SmsMessage {
+  id: string;
+  recipient: string;
+  message: string;
+  category: string;
+  status: string;
+  providerMessageId?: string | null;
+  error?: string | null;
+  groupLabel?: string | null;
+  incidentId?: string | null;
+  createdAt: string;
+}
+
+export interface SmsContact {
+  id: string;
+  name: string;
+  phone: string;
+  group: string;
+  isActive: boolean;
+}
+
+export interface SmsTemplate {
+  id: string;
+  key: string;
+  label: string;
+  body: string;
+}
+
 export interface AuditLog {
   id: string;
   action: 'CREATE' | 'UPDATE' | 'STATUS_CHANGE' | string;

@@ -81,6 +81,22 @@ const schema = {
       type: 'string',
       default: '',
     },
+    ADVANTA_BASE_URL: {
+      type: 'string',
+      default: 'https://quicksms.advantasms.com',
+    },
+    ADVANTA_API_KEY: {
+      type: 'string',
+      default: '',
+    },
+    ADVANTA_PARTNER_ID: {
+      type: 'string',
+      default: '',
+    },
+    ADVANTA_SENDER_ID: {
+      type: 'string',
+      default: 'EOC',
+    },
   },
 };
 
@@ -109,6 +125,10 @@ declare module 'fastify' {
       YEASTAR_CLIENT_ID: string;
       YEASTAR_CLIENT_SECRET: string;
       YEASTAR_WEBHOOK_SECRET: string;
+      ADVANTA_BASE_URL: string;
+      ADVANTA_API_KEY: string;
+      ADVANTA_PARTNER_ID: string;
+      ADVANTA_SENDER_ID: string;
     };
   }
 }

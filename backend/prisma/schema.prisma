@@ -472,3 +472,50 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMS — outbound messaging via Advanta. SmsMessage is the audit log (one row
+// per recipient). SmsContact is a managed recipient list grouped by tag
+// (e.g. SURVEILLANCE). SmsTemplate holds editable message bodies.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SmsMessage {
+  id                String   @id @default(uuid())
+  recipient         String                            // normalized MSISDN, e.g. 2547XXXXXXXX
+  message           String   @db.Text
+  category          String   @default("MANUAL")       // MANUAL | AUTO_PARTNER | SURVEILLANCE
+  status            String   @default("SENT")          // SENT | FAILED
+  providerMessageId String?  @map("provider_message_id")
+  error             String?  @db.Text
+  groupLabel        String?  @map("group_label")       // e.g. recipient group / niche tag
+  incidentId        String?  @map("incident_id")       // soft link (no FK) for auto-notify dedup
+  sentById          String?  @map("sent_by_id")        // soft link to the user who triggered a manual send
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([incidentId])
+  @@index([category])
+  @@map("sms_messages")
+}
+
+model SmsContact {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String
+  group     String                                     // free tag, e.g. SURVEILLANCE, MEDIA
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([group])
+  @@map("sms_contacts")
+}
+
+model SmsTemplate {
+  id        String   @id @default(uuid())
+  key       String   @unique                           // GBV | MCI | SURVEILLANCE
+  label     String
+  body      String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sms_templates")
+}

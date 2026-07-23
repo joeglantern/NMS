@@ -16,6 +16,7 @@ import PartnerDashboardPage from '../pages/partner/PartnerDashboardPage';
 import PartnerCaseDetailPage from '../pages/partner/PartnerCaseDetailPage';
 import FacilitiesPage from '../pages/admin/FacilitiesPage';
 import PartnersPage from '../pages/admin/PartnersPage';
+import BulkSmsPage from '../pages/admin/BulkSmsPage';
 import NatureOptionsPage from '../pages/admin/NatureOptionsPage';
 import GbvDashboardPage from '../pages/gbv/GbvDashboardPage';
 import GbvCaseDetailPage from '../pages/gbv/GbvCaseDetailPage';
@@ -61,6 +62,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
             <PartnersPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'admin/sms',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <BulkSmsPage />
           </RoleGuard>
         ),
       },

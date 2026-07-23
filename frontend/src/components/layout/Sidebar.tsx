@@ -15,6 +15,7 @@ import {
   Tag,
   ShieldWarning,
   Handshake,
+  ChatText,
 } from '@phosphor-icons/react';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 import { Link, useLocation } from 'react-router-dom';
@@ -33,6 +34,7 @@ const navItems = [
   { label: 'Partners', path: '/admin/partners', Icon: Handshake, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { label: 'Bulk SMS', path: '/admin/sms', Icon: ChatText, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'GBV Register', path: '/gbv/dashboard', Icon: ShieldWarning, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Analytics', path: '/admin/analytics', Icon: ChartLineUp, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER', 'PARTNER'] },
   { label: 'System Settings', path: '/admin/settings', Icon: Gear, roles: ['SUPER_ADMIN', 'ADMIN'] },
