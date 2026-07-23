@@ -20,6 +20,7 @@ function fillFromCase(body: string, c: Incident): string {
     time: when
       ? new Date(when).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
       : '',
+    maps: c.lat != null && c.lng != null ? `Map: https://maps.google.com/?q=${c.lat},${c.lng}` : '',
   };
   return body.replace(/\{\{(\w+)\}\}/g, (_m, k) => vars[k] ?? '').replace(/\s{2,}/g, ' ').trim();
 }
@@ -399,7 +400,7 @@ export default function BulkSmsPage() {
           ))}
         </div>
         <p className="text-[11px] mt-3" style={{ color: 'var(--muted)' }}>
-          Placeholders: <code>{'{{caseNumber}}'}</code>, <code>{'{{location}}'}</code>, <code>{'{{nature}}'}</code>, <code>{'{{complaint}}'}</code>, <code>{'{{count}}'}</code>, <code>{'{{time}}'}</code> — filled from the selected case (or automatically for auto/surveillance sends).
+          Placeholders: <code>{'{{caseNumber}}'}</code>, <code>{'{{location}}'}</code>, <code>{'{{nature}}'}</code>, <code>{'{{complaint}}'}</code>, <code>{'{{count}}'}</code>, <code>{'{{time}}'}</code>, <code>{'{{maps}}'}</code> — filled from the selected case (or automatically for auto/surveillance sends).
         </p>
       </div>
 

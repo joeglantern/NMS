@@ -31,7 +31,7 @@ export class IncidentService {
     id: string; caseNumber: string; locationName: string; subCounty: string;
     massCasualty: boolean; massCasualtyCount: number | null; isGbvCase: boolean;
     alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
-    alertAt: Date | null; createdAt: Date;
+    alertAt: Date | null; createdAt: Date; lat: number | null; lng: number | null;
   }): void {
     const vars = {
       caseNumber: incident.caseNumber,
@@ -40,6 +40,9 @@ export class IncidentService {
       nature: [incident.alertNature, incident.alertNatureDetail].filter(Boolean).join(' – ') || incident.chiefComplaint,
       complaint: incident.chiefComplaint,
       time: this.formatAlertTime(incident.alertAt ?? incident.createdAt),
+      maps: incident.lat != null && incident.lng != null
+        ? `Map: https://maps.google.com/?q=${incident.lat},${incident.lng}`
+        : '',
     };
     (async () => {
       try {

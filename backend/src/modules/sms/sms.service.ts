@@ -20,17 +20,17 @@ export const DEFAULT_TEMPLATES = [
   {
     key: 'GBV',
     label: 'GBV partner alert',
-    body: 'EOC GBV ALERT {{caseNumber}} | Nature: {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | You are an assigned GBV partner — please respond and coordinate via EOC.',
+    body: 'EOC GBV ALERT {{caseNumber}} | Nature: {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | You are an assigned GBV partner — please respond and coordinate via EOC. {{maps}}',
   },
   {
     key: 'MCI',
     label: 'MCI partner alert',
-    body: 'EOC MCI {{caseNumber}} | Location: {{location}} | Casualties: ~{{count}} | {{nature}} — {{complaint}} | Reported: {{time}} | MCI support requested — please respond and coordinate via EOC.',
+    body: 'EOC MCI {{caseNumber}} | Location: {{location}} | Casualties: ~{{count}} | {{nature}} — {{complaint}} | Reported: {{time}} | MCI support requested — please respond and coordinate via EOC. {{maps}}',
   },
   {
     key: 'SURVEILLANCE',
     label: 'Surveillance alert',
-    body: 'EOC SURVEILLANCE {{caseNumber}} | {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | Please review and advise.',
+    body: 'EOC SURVEILLANCE {{caseNumber}} | {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | Please review and advise. {{maps}}',
   },
 ];
 
