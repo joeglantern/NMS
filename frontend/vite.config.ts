@@ -8,4 +8,17 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
+  build: {
+    // Split the heaviest libraries into their own cacheable chunks so they
+    // aren't in the initial bundle (charts load with Analytics, maps with Fleet).
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-charts': ['recharts'],
+          'vendor-maps': ['leaflet', 'react-leaflet'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 900,
+  },
 });

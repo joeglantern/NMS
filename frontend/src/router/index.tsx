@@ -1,25 +1,29 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { lazy } from 'react';
 import RoleGuard from '../components/shared/RoleGuard';
 import AppShell from '../components/layout/AppShell';
 import LoginPage from '../pages/auth/LoginPage';
-import DashboardPage from '../pages/dispatcher/DashboardPage';
-import QueuePage from '../pages/dispatcher/QueuePage';
-import IncidentDetailPage from '../pages/dispatcher/IncidentDetailPage';
-import FleetPage from '../pages/dispatcher/FleetPage';
-import CallLogPage from '../pages/dispatcher/CallLogPage';
-import NewIncidentWizard from '../pages/watcher/NewIncidentWizard';
-import WatcherDashboardPage from '../pages/watcher/WatcherDashboardPage';
-import UserManagementPage from '../pages/admin/UserManagementPage';
-import SystemSettingsPage from '../pages/admin/SystemSettingsPage';
-import AnalyticsPage from '../pages/admin/AnalyticsPage';
-import PartnerDashboardPage from '../pages/partner/PartnerDashboardPage';
-import PartnerCaseDetailPage from '../pages/partner/PartnerCaseDetailPage';
-import FacilitiesPage from '../pages/admin/FacilitiesPage';
-import PartnersPage from '../pages/admin/PartnersPage';
-import BulkSmsPage from '../pages/admin/BulkSmsPage';
-import NatureOptionsPage from '../pages/admin/NatureOptionsPage';
-import GbvDashboardPage from '../pages/gbv/GbvDashboardPage';
-import GbvCaseDetailPage from '../pages/gbv/GbvCaseDetailPage';
+
+// Heavy authenticated pages are code-split so they load on demand (keeps the
+// initial bundle small). The Suspense boundary lives in AppShell.
+const DashboardPage = lazy(() => import('../pages/dispatcher/DashboardPage'));
+const QueuePage = lazy(() => import('../pages/dispatcher/QueuePage'));
+const IncidentDetailPage = lazy(() => import('../pages/dispatcher/IncidentDetailPage'));
+const FleetPage = lazy(() => import('../pages/dispatcher/FleetPage'));
+const CallLogPage = lazy(() => import('../pages/dispatcher/CallLogPage'));
+const NewIncidentWizard = lazy(() => import('../pages/watcher/NewIncidentWizard'));
+const WatcherDashboardPage = lazy(() => import('../pages/watcher/WatcherDashboardPage'));
+const UserManagementPage = lazy(() => import('../pages/admin/UserManagementPage'));
+const SystemSettingsPage = lazy(() => import('../pages/admin/SystemSettingsPage'));
+const AnalyticsPage = lazy(() => import('../pages/admin/AnalyticsPage'));
+const PartnerDashboardPage = lazy(() => import('../pages/partner/PartnerDashboardPage'));
+const PartnerCaseDetailPage = lazy(() => import('../pages/partner/PartnerCaseDetailPage'));
+const FacilitiesPage = lazy(() => import('../pages/admin/FacilitiesPage'));
+const PartnersPage = lazy(() => import('../pages/admin/PartnersPage'));
+const BulkSmsPage = lazy(() => import('../pages/admin/BulkSmsPage'));
+const NatureOptionsPage = lazy(() => import('../pages/admin/NatureOptionsPage'));
+const GbvDashboardPage = lazy(() => import('../pages/gbv/GbvDashboardPage'));
+const GbvCaseDetailPage = lazy(() => import('../pages/gbv/GbvCaseDetailPage'));
 
 // Placeholder components for unimplemented pages
 const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-danger text-center">Unauthorized Access</div>;

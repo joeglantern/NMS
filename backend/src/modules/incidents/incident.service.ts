@@ -2,13 +2,44 @@ import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { IncidentStatus, Role, TaskStatus, VehicleStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
+import { SmsService } from '../sms/sms.service.js';
 
 export class IncidentService {
-  constructor(private app: FastifyInstance) {}
+  private sms: SmsService;
+
+  constructor(private app: FastifyInstance) {
+    this.sms = new SmsService(app);
+  }
 
   /** Display form of the running case sequence, e.g. 1 -> "Case 001". */
   private formatCaseNumber(seq: number): string {
     return `Case ${String(seq).padStart(3, '0')}`;
+  }
+
+  /**
+   * Fire-and-forget: SMS partners whose niche matches a case's GBV/MCI flags.
+   * Never blocks or throws into the incident flow; notifyPartnersForCase dedups
+   * per incident+tag so create/escalate/edit won't double-send.
+   */
+  private notifyPartnersForFlags(incident: {
+    id: string; caseNumber: string; locationName: string; subCounty: string;
+    massCasualty: boolean; massCasualtyCount: number | null; isGbvCase: boolean;
+    alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
+  }): void {
+    const vars = {
+      caseNumber: incident.caseNumber,
+      location: [incident.locationName, incident.subCounty].filter(Boolean).join(', '),
+      count: incident.massCasualtyCount ?? undefined,
+      nature: [incident.alertNature, incident.alertNatureDetail].filter(Boolean).join(' – ') || incident.chiefComplaint,
+    };
+    (async () => {
+      try {
+        if (incident.isGbvCase) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
+        if (incident.massCasualty) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'MCI', vars });
+      } catch (err) {
+        this.app.log.error({ err }, 'partner auto-notify failed');
+      }
+    })();
   }
 
   private async writeAudit(opts: {
@@ -129,6 +160,9 @@ export class IncidentService {
     });
 
     this.app.io.to(`role:${Role.DISPATCHER}`).emit('incident:new', incident);
+
+    // Auto-SMS matching partners when the case is flagged GBV or MCI.
+    this.notifyPartnersForFlags(incident);
 
     return incident;
   }
@@ -404,6 +438,9 @@ export class IncidentService {
       });
 
     this.app.io.to(`incident:${id}`).emit('incident:update', updated);
+
+    // Escalation flips the case to MCI — notify matching partners.
+    this.notifyPartnersForFlags(updated);
 
     return updated;
   }

@@ -13,12 +13,16 @@ const inputCls = 'w-full border rounded-xl px-4 py-3 text-sm font-semibold outli
 const inputStyle = { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' };
 const labelCls = 'block text-[10px] font-black uppercase tracking-widest mb-2';
 
+// Partner specialties — a case flagged with one of these auto-SMSes matching partners.
+const NICHE_OPTIONS = ['GBV', 'MCI'];
+
 // Read contact fields out of the agency's contactInfo JSON blob
-function contactOf(agency: Agency): { email: string; phone: string } {
+function contactOf(agency: Agency): { email: string; phone: string; niches: string[] } {
   const info = (agency.contactInfo ?? {}) as Record<string, unknown>;
   return {
     email: typeof info.email === 'string' ? info.email : '',
     phone: typeof info.phone === 'string' ? info.phone : '',
+    niches: Array.isArray(info.niches) ? (info.niches as unknown[]).map(String) : [],
   };
 }
 
@@ -28,7 +32,7 @@ export default function PartnersPage() {
   const [search, setSearch] = useState('');
   const [showOnboard, setShowOnboard] = useState(false);
   const [editTarget, setEditTarget] = useState<Agency | null>(null);
-  const [editForm, setEditForm] = useState({ email: '', phone: '' });
+  const [editForm, setEditForm] = useState({ email: '', phone: '', niches: [] as string[] });
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['admin', 'agencies', 'PARTNER'],
@@ -51,7 +55,7 @@ export default function PartnersPage() {
   const updateContactMutation = useMutation({
     mutationFn: ({ id, existing }: { id: string; existing: Record<string, unknown> }) =>
       api.patch(`/admin/agencies/${id}`, {
-        contactInfo: { ...existing, email: editForm.email, phone: editForm.phone },
+        contactInfo: { ...existing, email: editForm.email, phone: editForm.phone, niches: editForm.niches },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'agencies'] });
@@ -65,9 +69,12 @@ export default function PartnersPage() {
 
   function openEdit(agency: Agency) {
     const c = contactOf(agency);
-    setEditForm({ email: c.email, phone: c.phone });
+    setEditForm({ email: c.email, phone: c.phone, niches: c.niches });
     setEditTarget(agency);
   }
+
+  const toggleNiche = (n: string) =>
+    setEditForm(f => ({ ...f, niches: f.niches.includes(n) ? f.niches.filter(x => x !== n) : [...f.niches, n] }));
 
   const filtered = partners.filter(p => {
     const c = contactOf(p);
@@ -232,12 +239,30 @@ export default function PartnersPage() {
                   )}
                 </div>
 
+                {/* Niches — a case with a matching flag auto-SMSes this partner */}
+                <div className="mt-4">
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: 'var(--muted)' }}>
+                    Auto-notify Niches
+                  </p>
+                  {c.niches.length === 0 ? (
+                    <p className="text-xs" style={{ color: 'var(--muted-2)' }}>None — won't be auto-notified.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {c.niches.map(n => (
+                        <span key={n} className="text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: '#EEF2FF', color: '#4338CA' }}>
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-4 pt-3 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
                   <button
                     onClick={() => openEdit(partner)}
                     className="flex items-center gap-1.5 text-xs font-bold text-brand-teal hover:opacity-70 transition-opacity"
                   >
-                    <PencilSimple size={14} weight="bold" />Edit contact
+                    <PencilSimple size={14} weight="bold" />Edit contact &amp; niches
                   </button>
                 </div>
               </div>
@@ -275,6 +300,30 @@ export default function PartnersPage() {
               <div>
                 <label className={labelCls} style={{ color: 'var(--muted)' }}><Phone size={12} className="inline mr-1" />Contact Phone *</label>
                 <input required type="tel" className={inputCls} style={inputStyle} placeholder="+254712345678" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>Auto-notify Niches</label>
+                <div className="flex flex-wrap gap-2">
+                  {NICHE_OPTIONS.map(n => {
+                    const on = editForm.niches.includes(n);
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => toggleNiche(n)}
+                        className="px-3 py-2 rounded-lg border text-xs font-bold transition-all"
+                        style={on
+                          ? { background: '#4338CA', color: '#fff', borderColor: 'transparent' }
+                          : { background: 'var(--surface-2)', color: 'var(--ink)', borderColor: 'var(--border)' }}
+                      >
+                        {on ? '✓ ' : ''}{n}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
+                  When a case is flagged with a selected niche, this partner is texted automatically.
+                </p>
               </div>
               <div className="pt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setEditTarget(null)} className="px-4 py-2.5 text-sm font-bold rounded-xl" style={{ color: 'var(--muted)' }}>Cancel</button>

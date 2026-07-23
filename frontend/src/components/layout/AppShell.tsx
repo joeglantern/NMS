@@ -1,5 +1,5 @@
 import { Outlet, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import ToastContainer from '../shared/ToastContainer';
@@ -123,7 +123,9 @@ export default function AppShell() {
           </div>
         )}
         <main className="content">
-          <Outlet />
+          <Suspense fallback={<div className="p-10 text-center font-bold" style={{ color: 'var(--muted)' }}>Loading…</div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       <DevRoleSwitcher />

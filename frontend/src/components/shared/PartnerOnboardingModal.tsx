@@ -26,7 +26,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
   // ── Create tab state ──────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
   const [createdAgencyId, setCreatedAgencyId] = useState('');
-  const [agencyForm, setAgencyForm] = useState({ name: '', location: '', contactEmail: '', contactPhone: '' });
+  const [agencyForm, setAgencyForm] = useState({ name: '', location: '', contactEmail: '', contactPhone: '', niches: [] as string[] });
   const [userForm, setUserForm] = useState({ name: '', email: '', passwordRaw: '', phone: '' });
 
   // ── Assign tab state ──────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
         name: agencyForm.name,
         type: 'PARTNER',
         location: agencyForm.location || undefined,
-        contactInfo: { email: agencyForm.contactEmail, phone: agencyForm.contactPhone },
+        contactInfo: { email: agencyForm.contactEmail, phone: agencyForm.contactPhone, niches: agencyForm.niches },
       }),
     onSuccess: (res) => {
       const agency = res.data.data as Agency;
@@ -119,7 +119,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
     setTab('create');
     setStep(1);
     setCreatedAgencyId('');
-    setAgencyForm({ name: '', location: '', contactEmail: '', contactPhone: '' });
+    setAgencyForm({ name: '', location: '', contactEmail: '', contactPhone: '', niches: [] });
     setUserForm({ name: '', email: '', passwordRaw: '', phone: '' });
     setAssignUserId('');
     setAssignAgencyId('');
@@ -214,6 +214,25 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
                     <label className={labelCls}><Phone size={12} className="inline mr-1" />Contact Phone *</label>
                     <input required type="tel" className={inputCls} placeholder="e.g. +254712345678" value={agencyForm.contactPhone} onChange={e => setAgencyForm(f => ({ ...f, contactPhone: e.target.value }))} />
                   </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Auto-notify Niches</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['GBV', 'MCI'].map(n => {
+                      const on = agencyForm.niches.includes(n);
+                      return (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setAgencyForm(f => ({ ...f, niches: on ? f.niches.filter(x => x !== n) : [...f.niches, n] }))}
+                          className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all ${on ? 'bg-brand-teal text-white border-transparent' : 'bg-white text-slate-500 border-slate-200'}`}
+                        >
+                          {on ? '✓ ' : ''}{n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">Cases flagged with a selected niche will text this partner automatically.</p>
                 </div>
                 <div className="pt-2 flex justify-end">
                   <button
