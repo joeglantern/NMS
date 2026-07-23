@@ -8,13 +8,18 @@ import api from '../../api/client';
 import { Incident, SmsContact, SmsMessage, SmsTemplate } from '../../types/api';
 import { useNotificationStore } from '../../stores/notificationStore';
 
-// Fill {{caseNumber}}/{{location}}/{{count}}/{{nature}} from a real case.
+// Fill template placeholders from a real case.
 function fillFromCase(body: string, c: Incident): string {
+  const when = c.alertAt || c.createdAt;
   const vars: Record<string, string> = {
     caseNumber: c.caseNumber ?? '',
     location: [c.locationName, c.subCounty].filter(Boolean).join(', '),
     count: c.massCasualtyCount != null ? String(c.massCasualtyCount) : '',
     nature: [c.alertNature, c.alertNatureDetail].filter(Boolean).join(' – ') || c.chiefComplaint || '',
+    complaint: c.chiefComplaint ?? '',
+    time: when
+      ? new Date(when).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '',
   };
   return body.replace(/\{\{(\w+)\}\}/g, (_m, k) => vars[k] ?? '').replace(/\s{2,}/g, ' ').trim();
 }
@@ -394,7 +399,7 @@ export default function BulkSmsPage() {
           ))}
         </div>
         <p className="text-[11px] mt-3" style={{ color: 'var(--muted)' }}>
-          Placeholders: <code>{'{{caseNumber}}'}</code>, <code>{'{{location}}'}</code>, <code>{'{{count}}'}</code>, <code>{'{{nature}}'}</code> — filled automatically for auto/surveillance sends.
+          Placeholders: <code>{'{{caseNumber}}'}</code>, <code>{'{{location}}'}</code>, <code>{'{{nature}}'}</code>, <code>{'{{complaint}}'}</code>, <code>{'{{count}}'}</code>, <code>{'{{time}}'}</code> — filled from the selected case (or automatically for auto/surveillance sends).
         </p>
       </div>
 

@@ -21,16 +21,25 @@ export class IncidentService {
    * Never blocks or throws into the incident flow; notifyPartnersForCase dedups
    * per incident+tag so create/escalate/edit won't double-send.
    */
+  private formatAlertTime(d: Date | null): string {
+    return (d ?? new Date()).toLocaleString('en-GB', {
+      timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  }
+
   private notifyPartnersForFlags(incident: {
     id: string; caseNumber: string; locationName: string; subCounty: string;
     massCasualty: boolean; massCasualtyCount: number | null; isGbvCase: boolean;
     alertNature: string | null; alertNatureDetail: string | null; chiefComplaint: string;
+    alertAt: Date | null; createdAt: Date;
   }): void {
     const vars = {
       caseNumber: incident.caseNumber,
       location: [incident.locationName, incident.subCounty].filter(Boolean).join(', '),
       count: incident.massCasualtyCount ?? undefined,
       nature: [incident.alertNature, incident.alertNatureDetail].filter(Boolean).join(' – ') || incident.chiefComplaint,
+      complaint: incident.chiefComplaint,
+      time: this.formatAlertTime(incident.alertAt ?? incident.createdAt),
     };
     (async () => {
       try {

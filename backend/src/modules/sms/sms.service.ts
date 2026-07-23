@@ -16,21 +16,21 @@ export interface SendMeta {
   sentById?: string;
 }
 
-const DEFAULT_TEMPLATES = [
+export const DEFAULT_TEMPLATES = [
   {
     key: 'GBV',
     label: 'GBV partner alert',
-    body: 'EOC ALERT: A GBV case ({{caseNumber}}) has been logged at {{location}}. Please respond as an assigned GBV partner.',
+    body: 'EOC GBV ALERT {{caseNumber}} | Nature: {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | You are an assigned GBV partner — please respond and coordinate via EOC.',
   },
   {
     key: 'MCI',
     label: 'MCI partner alert',
-    body: 'EOC ALERT: Mass Casualty Incident ({{caseNumber}}) at {{location}}, approx {{count}} casualties. Your MCI support is requested.',
+    body: 'EOC MCI {{caseNumber}} | Location: {{location}} | Casualties: ~{{count}} | {{nature}} — {{complaint}} | Reported: {{time}} | MCI support requested — please respond and coordinate via EOC.',
   },
   {
     key: 'SURVEILLANCE',
     label: 'Surveillance alert',
-    body: 'EOC SURVEILLANCE ALERT: {{nature}} reported at {{location}} (case {{caseNumber}}). Please review and advise.',
+    body: 'EOC SURVEILLANCE {{caseNumber}} | {{nature}} | Location: {{location}} | Details: {{complaint}} | Reported: {{time}} | Please review and advise.',
   },
 ];
 
