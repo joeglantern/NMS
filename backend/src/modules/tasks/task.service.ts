@@ -28,9 +28,11 @@ export class TaskService {
     if (!task) throw new NotFoundError('Task not found');
 
     const isCrew = [task.driverId, task.emtId, task.nurseId].includes(user.userId);
-    if (!isCrew) throw new ForbiddenError('You are not assigned to this task');
+    const isDispatch = (<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role);
+    if (!isCrew && !isDispatch) throw new ForbiddenError('You are not assigned to this task');
 
-    if (task.status !== TaskStatus.COMPLETED) {
+    // Crew may only upload once the task is completed; dispatch/admin can (re)upload at any time.
+    if (!isDispatch && task.status !== TaskStatus.COMPLETED) {
       throw new BadRequestError('Patient care report can only be uploaded after task is completed');
     }
 

@@ -19,6 +19,6 @@ export const useAuthStore = create<AuthStore>()(
       setRole: (role) => set((s) => ({ user: s.user ? { ...s.user, role } : null })),
       logout: () => set({ token: null, user: null }),
     }),
-    { name: 'nms-auth' }
+    { name: 'nccg-eoc-auth' }
   )
 );

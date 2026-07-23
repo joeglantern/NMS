@@ -155,6 +155,8 @@ export interface Incident {
   alertNatureDetail?: string;
   originOfAlert?: string;
   placeOfReferral?: string;
+  targetFacilityId?: string | null;
+  targetFacility?: Facility | null;
   massCasualty: boolean;
   massCasualtyCount?: number;
   watcherComments?: string;

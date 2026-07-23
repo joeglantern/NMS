@@ -62,6 +62,7 @@ const updateIncidentSchema = z.object({
   alertNature: z.string().optional(),
   alertNatureDetail: z.string().optional(),
   placeOfReferral: z.string().optional(),
+  targetFacilityId: z.string().optional().or(z.literal('')),
   hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
   preHospitalManagement: z.string().optional(),
   partnerNotes: z.string().optional(),

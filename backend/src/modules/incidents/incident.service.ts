@@ -182,6 +182,7 @@ export class IncidentService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        targetFacility: true,
       },
     });
 
@@ -221,6 +222,7 @@ export class IncidentService {
       alertNature?: string;
       alertNatureDetail?: string;
       placeOfReferral?: string;
+      targetFacilityId?: string;
       hospitalLevelRequired?: number;
       preHospitalManagement?: string;
       partnerNotes?: string;
@@ -246,13 +248,15 @@ export class IncidentService {
       'massCasualtyCount', 'watcherComments', 'dispatcherComments',
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
-      'alertNatureDetail', 'placeOfReferral', 'hospitalLevelRequired',
+      'alertNatureDetail', 'placeOfReferral', 'targetFacilityId', 'hospitalLevelRequired',
       'preHospitalManagement', 'partnerNotes', 'pcrUrl', 'vitals', 'maternityVitals',
     ] as const;
 
     for (const field of editableFields) {
-      const value = (data as Record<string, unknown>)[field];
+      let value = (data as Record<string, unknown>)[field];
       if (value === undefined) continue;
+      // targetFacilityId is an optional FK — an empty string clears the referral
+      if (field === 'targetFacilityId' && value === '') value = null;
       if ((incident as Record<string, unknown>)[field] !== value) {
         oldValues[field] = (incident as Record<string, unknown>)[field];
         newValues[field] = value;

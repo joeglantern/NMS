@@ -126,7 +126,7 @@ export const taskRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
    */
   app.post<{ Params: { id: string } }>(
     '/:id/patient-care-report',
-    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
     async (request, reply) => {
       const file = await (request as any).file?.();
       if (!file) throw new BadRequestError('file is required');

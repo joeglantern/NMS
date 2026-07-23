@@ -26,7 +26,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
   // ── Create tab state ──────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
   const [createdAgencyId, setCreatedAgencyId] = useState('');
-  const [agencyForm, setAgencyForm] = useState({ name: '', location: '', contactEmail: '' });
+  const [agencyForm, setAgencyForm] = useState({ name: '', location: '', contactEmail: '', contactPhone: '' });
   const [userForm, setUserForm] = useState({ name: '', email: '', passwordRaw: '', phone: '' });
 
   // ── Assign tab state ──────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
         name: agencyForm.name,
         type: 'PARTNER',
         location: agencyForm.location || undefined,
-        contactInfo: agencyForm.contactEmail ? { email: agencyForm.contactEmail } : undefined,
+        contactInfo: { email: agencyForm.contactEmail, phone: agencyForm.contactPhone },
       }),
     onSuccess: (res) => {
       const agency = res.data.data as Agency;
@@ -119,7 +119,7 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
     setTab('create');
     setStep(1);
     setCreatedAgencyId('');
-    setAgencyForm({ name: '', location: '', contactEmail: '' });
+    setAgencyForm({ name: '', location: '', contactEmail: '', contactPhone: '' });
     setUserForm({ name: '', email: '', passwordRaw: '', phone: '' });
     setAssignUserId('');
     setAssignAgencyId('');
@@ -205,14 +205,20 @@ export default function PartnerOnboardingModal({ isOpen, onClose }: Props) {
                   <label className={labelCls}><Globe size={12} className="inline mr-1" />Location / Address</label>
                   <input className={inputCls} placeholder="e.g. Upper Hill, Nairobi" value={agencyForm.location} onChange={e => setAgencyForm(f => ({ ...f, location: e.target.value }))} />
                 </div>
-                <div>
-                  <label className={labelCls}><EnvelopeSimple size={12} className="inline mr-1" />Agency Contact Email</label>
-                  <input type="email" className={inputCls} placeholder="e.g. ops@partneragency.org" value={agencyForm.contactEmail} onChange={e => setAgencyForm(f => ({ ...f, contactEmail: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}><EnvelopeSimple size={12} className="inline mr-1" />Contact Email *</label>
+                    <input required type="email" className={inputCls} placeholder="e.g. ops@partneragency.org" value={agencyForm.contactEmail} onChange={e => setAgencyForm(f => ({ ...f, contactEmail: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={labelCls}><Phone size={12} className="inline mr-1" />Contact Phone *</label>
+                    <input required type="tel" className={inputCls} placeholder="e.g. +254712345678" value={agencyForm.contactPhone} onChange={e => setAgencyForm(f => ({ ...f, contactPhone: e.target.value }))} />
+                  </div>
                 </div>
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    disabled={!agencyForm.name.trim() || createAgencyMutation.isPending}
+                    disabled={!agencyForm.name.trim() || !agencyForm.contactEmail.trim() || !agencyForm.contactPhone.trim() || createAgencyMutation.isPending}
                     className="flex items-center gap-2 px-6 py-2.5 bg-brand-teal text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-40"
                   >
                     {createAgencyMutation.isPending ? 'Creating…' : 'Next — Create User'}

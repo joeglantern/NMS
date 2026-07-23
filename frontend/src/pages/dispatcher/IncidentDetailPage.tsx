@@ -1,16 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, RoadHorizon, FirstAid, DownloadSimple, FileText, Siren, Baby } from '@phosphor-icons/react';
+import { CaretRight, MapPin, PencilSimple, PaperPlaneRight, Printer, ArrowCircleUp, CheckCircle, Phone, ClockCounterClockwise, CaretDown, ShareNetwork, XCircle, Timer, Warning, ArrowCircleDown, Link as LinkIcon, ShieldWarning, NavigationArrow, RoadHorizon, FirstAid, DownloadSimple, FileText, Siren, Baby, Buildings, UploadSimple } from '@phosphor-icons/react';
 import { useDirections } from '../../hooks/useDirections';
 import api from '../../api/client';
-import { Incident, Vehicle, AuditLog, CallLog, PatientCareReport, MaternityVitals } from '../../types/api';
+import { Incident, Vehicle, AuditLog, CallLog, PatientCareReport, MaternityVitals, Facility } from '../../types/api';
 import EndCaseModal from '../../components/shared/EndCaseModal';
 import { formatDistanceToNow } from 'date-fns';
 import Map from '../../components/shared/Map';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useVehicleTracking } from '../../hooks/useVehicleTracking';
 import { socket } from '../../lib/socket';
+
+// Straight-line (great-circle) distance in km between two lat/lng points.
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371; // earth radius km
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
 
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,8 +36,10 @@ export default function IncidentDetailPage() {
   const [editedComplaint, setEditedComplaint] = useState('');
   const [editedLocation, setEditedLocation] = useState('');
   const [editedPlaceOfReferral, setEditedPlaceOfReferral] = useState('');
+  const [editedTargetFacilityId, setEditedTargetFacilityId] = useState('');
   const [editedDispatcherChallenges, setEditedDispatcherChallenges] = useState('');
   const [editedPcrUrl, setEditedPcrUrl] = useState('');
+  const [uploadingPcr, setUploadingPcr] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [resolveReason, setResolveReason] = useState('');
@@ -50,6 +64,7 @@ export default function IncidentDetailPage() {
       setEditedComplaint(data.chiefComplaint);
       setEditedLocation(data.locationName);
       setEditedPlaceOfReferral(data.placeOfReferral ?? '');
+      setEditedTargetFacilityId(data.targetFacilityId ?? '');
       setEditedDispatcherChallenges(data.dispatcherChallenges ?? '');
       setEditedPcrUrl(data.pcrUrl ?? '');
       setEditedPreHospital(data.preHospitalManagement ?? '');
@@ -340,6 +355,47 @@ export default function IncidentDetailPage() {
     }
   }
 
+  async function uploadPcr(file: File) {
+    if (!activeTask?.id) {
+      addNotification({ type: 'error', title: 'No Task', message: 'A vehicle must be dispatched before a PCR can be uploaded.' });
+      return;
+    }
+    setUploadingPcr(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api.post(`/tasks/${activeTask.id}/patient-care-report`, fd);
+      await queryClient.invalidateQueries({ queryKey: ['tasks', activeTask.id, 'pcr-reports'] });
+      addNotification({ type: 'success', title: 'PCR Uploaded', message: 'The patient care report was uploaded.' });
+    } catch (err: any) {
+      addNotification({ type: 'error', title: 'Upload Failed', message: err?.response?.data?.message || 'Could not upload the PCR file.' });
+    } finally {
+      setUploadingPcr(false);
+    }
+  }
+
+  // ── Referral facilities (sorted nearest-to-scene) ─────────────────────────
+  const { data: facilities = [] } = useQuery({
+    queryKey: ['facilities'],
+    queryFn: async () => {
+      const res = await api.get('/incidents/facilities');
+      return res.data.data as Facility[];
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const scenePoint = incident?.lat != null && incident?.lng != null
+    ? { lat: incident.lat, lng: incident.lng }
+    : null;
+
+  const facilitiesByDistance = [...facilities]
+    .map(f => ({ facility: f, km: scenePoint ? haversineKm(scenePoint, { lat: f.lat, lng: f.lng }) : null }))
+    .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
+
+  const selectedFacilityDistanceKm = scenePoint && incident?.targetFacility
+    ? haversineKm(scenePoint, { lat: incident.targetFacility.lat, lng: incident.targetFacility.lng })
+    : null;
+
   // ── Full fleet tracking (mirrors dispatch map) ────────────────────────────
   const { vehicles: liveVehicles } = useVehicleTracking();
 
@@ -562,6 +618,7 @@ export default function IncidentDetailPage() {
                       chiefComplaint: editedComplaint,
                       locationName: editedLocation,
                       placeOfReferral: editedPlaceOfReferral || undefined,
+                      targetFacilityId: editedTargetFacilityId,
                       dispatcherChallenges: editedDispatcherChallenges || undefined,
                       pcrUrl: editedPcrUrl || undefined,
                     })}
@@ -609,13 +666,44 @@ export default function IncidentDetailPage() {
               <div>
                 <label className="text-xs font-medium text-slate-400 block mb-1.5">Referral Facility</label>
                 {isEditingBrief ? (
-                  <input
-                    type="text"
-                    value={editedPlaceOfReferral}
-                    onChange={e => setEditedPlaceOfReferral(e.target.value)}
-                    placeholder="e.g. Kenyatta National Hospital"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm text-brand-teal focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
-                  />
+                  <>
+                    <select
+                      value={editedTargetFacilityId}
+                      onChange={e => setEditedTargetFacilityId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm text-brand-teal focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
+                    >
+                      <option value="">— No referral facility —</option>
+                      {facilitiesByDistance.map(({ facility, km }) => (
+                        <option key={facility.id} value={facility.id}>
+                          {facility.name} · {facility.type}{km != null ? ` · ~${km.toFixed(1)} km` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {(() => {
+                      const sel = facilitiesByDistance.find(x => x.facility.id === editedTargetFacilityId);
+                      if (!sel) return null;
+                      return (
+                        <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                          <NavigationArrow size={12} weight="fill" className="text-brand-green" />
+                          {sel.km != null ? `~${sel.km.toFixed(1)} km from scene (straight-line)` : 'Scene location not geocoded — distance unavailable'}
+                        </p>
+                      );
+                    })()}
+                    {!scenePoint && (
+                      <p className="text-[11px] text-amber-500 mt-1">Scene has no coordinates, so distances can't be shown.</p>
+                    )}
+                  </>
+                ) : incident.targetFacility ? (
+                  <div className="flex items-start gap-2">
+                    <Buildings size={16} weight="fill" className="text-brand-teal mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-brand-teal font-semibold">{incident.targetFacility.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {incident.targetFacility.type} · KEPH {incident.targetFacility.kephLevel}
+                        {selectedFacilityDistanceKm != null && <> · <span className="text-brand-green font-medium">~{selectedFacilityDistanceKm.toFixed(1)} km from scene</span></>}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <p className="text-sm text-brand-teal">{incident.placeOfReferral || '—'}</p>
                 )}
@@ -1035,17 +1123,37 @@ export default function IncidentDetailPage() {
 
             {/* PCR Reports uploaded by crew */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <FileText size={14} weight="bold" className="text-brand-teal" />
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Patient Care Reports (PCR)
-                  {pcrReports.length > 0 && (
-                    <span className="ml-2 bg-brand-teal/10 text-brand-teal px-2 py-0.5 rounded-full text-[10px] font-bold">{pcrReports.length}</span>
-                  )}
-                </p>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} weight="bold" className="text-brand-teal" />
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Patient Care Reports (PCR)
+                    {pcrReports.length > 0 && (
+                      <span className="ml-2 bg-brand-teal/10 text-brand-teal px-2 py-0.5 rounded-full text-[10px] font-bold">{pcrReports.length}</span>
+                    )}
+                  </p>
+                </div>
+                <label
+                  title={activeTask ? 'Upload or re-upload a PCR file' : 'Dispatch a vehicle first to attach a PCR'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 ${activeTask && !uploadingPcr ? 'text-brand-teal border-brand-teal/30 hover:bg-brand-teal hover:text-white cursor-pointer' : 'text-slate-300 border-slate-200 cursor-not-allowed'}`}
+                >
+                  <UploadSimple size={14} weight="bold" />
+                  {uploadingPcr ? 'Uploading…' : pcrReports.length > 0 ? 'Re-upload PCR' : 'Upload PCR'}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    disabled={!activeTask || uploadingPcr}
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadPcr(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
               {pcrReports.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3">No PCR files uploaded yet. Crew uploads after task completion.</p>
+                <p className="text-xs text-slate-400 py-3">No PCR files uploaded yet. Crew upload after task completion, or upload one here.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {pcrReports.map(report => (

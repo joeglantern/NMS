@@ -14,6 +14,7 @@ import {
   Hospital,
   Tag,
   ShieldWarning,
+  Handshake,
 } from '@phosphor-icons/react';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 import { Link, useLocation } from 'react-router-dom';
@@ -29,6 +30,7 @@ const navItems = [
   { label: 'Fleet Management', path: '/fleet', Icon: MapTrifold, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Call Logs', path: '/call-logs', Icon: Phone, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Personnel', path: '/admin/users', Icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { label: 'Partners', path: '/admin/partners', Icon: Handshake, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'GBV Register', path: '/gbv/dashboard', Icon: ShieldWarning, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
@@ -58,7 +60,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             <ShieldCheck weight="fill" />
           </div>
           <div className="brand-text">
-            <b>NMS-EOC</b>
+            <b>NCCG EOC</b>
             <span>Command Centre</span>
           </div>
           <button

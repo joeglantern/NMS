@@ -641,7 +641,7 @@ export default function NewIncidentWizard() {
                       <option value="">Select age...</option>
                       <option value="Below 1 Month">Below 1 Month</option>
                       <option value="1-6 Months">1-6 Months</option>
-                      <option value="6-13 Months">6-13 Months</option>
+                      <option value="6-12 Months">6-12 Months</option>
                       {Array.from({ length: 149 }, (_, i) => i + 2).map(yr => (
                         <option key={yr} value={String(yr)}>{yr}</option>
                       ))}
