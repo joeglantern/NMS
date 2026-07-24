@@ -378,10 +378,28 @@ export default function NewIncidentWizard() {
     }
   }, [form.locationName]);
 
+  // Reliable sub-county detection from coordinates via Nominatim reverse geocode.
+  async function reverseDetectSubCounty(lat: number, lng: number): Promise<string> {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
+      const data = await res.json();
+      return detectSubCounty(data.address ?? {});
+    } catch {
+      return '';
+    }
+  }
+
   const selectGoogleSuggestion = async (placeId: string, description: string) => {
     try {
       const details = await places.getDetails(placeId);
-      const detectedSub = matchSubCounty(details.subCountyCandidates);
+      // Prefer Google's own components; fall back to a reverse geocode of the
+      // coordinates (Google is unreliable for Nairobi constituencies).
+      let detectedSub = matchSubCounty(details.subCountyCandidates);
+      if (!detectedSub) {
+        setIsReverseGeocoding(true);
+        detectedSub = await reverseDetectSubCounty(details.lat, details.lng);
+        setIsReverseGeocoding(false);
+      }
       set({
         locationName: details.name || description.split(',').slice(0, 2).join(',').trim(),
         lat: details.lat,
