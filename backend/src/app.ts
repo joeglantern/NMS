@@ -60,10 +60,13 @@ export async function buildApp(): Promise<FastifyInstance> {
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
-  // ── Multipart uploads (PCR images, etc.) ────────────────────────────────────
+  // ── Multipart uploads (PCR images/docs, check-in selfies, etc.) ─────────────
+  // No practical size cap on uploads (PCRs must never be rejected for size).
+  // The 1 GB ceiling is only a runaway/disk-fill backstop — a real PCR or
+  // selfie is nowhere near it. Raise or remove if ever needed.
   await app.register(multipart, {
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
+      fileSize: 1024 * 1024 * 1024, // 1 GB — effectively unlimited for PCRs
       files: 1,
     },
   });
