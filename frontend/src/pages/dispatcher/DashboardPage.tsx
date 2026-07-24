@@ -41,6 +41,18 @@ export default function DashboardPage() {
     },
   });
 
+  const { data: fleetStatus } = useQuery({
+    queryKey: ['dispatch', 'fleet-status'],
+    queryFn: async () => {
+      const res = await api.get('/dispatch/fleet-status');
+      return res.data.data as {
+        READY: number; DISPATCHED: number; ON_SCENE: number; RETURNING: number;
+        OFFLINE: number; MAINTENANCE: number; total: number;
+      };
+    },
+    refetchInterval: 20_000,
+  });
+
   const queryClient = useQueryClient();
   const { vehicles: liveVehicles, lastUpdatedAt } = useVehicleTracking();
 
@@ -280,8 +292,11 @@ export default function DashboardPage() {
           </div>
           <div className="card-pad col" style={{ gap: 14 }}>
             {(['READY', 'DISPATCHED', 'ON_SCENE', 'RETURNING', 'OFFLINE'] as const).map((status) => {
-              const count = liveVehicles.filter((v) => v.dbStatus === status).length;
-              const total = liveVehicles.length || 1;
+              // Real counts from /dispatch/fleet-status; OFFLINE folds in maintenance.
+              const count = status === 'OFFLINE'
+                ? (fleetStatus?.OFFLINE ?? 0) + (fleetStatus?.MAINTENANCE ?? 0)
+                : (fleetStatus?.[status] ?? 0);
+              const total = fleetStatus?.total || 1;
               const pillCls = status === 'READY' ? 'pill-green' : status === 'OFFLINE' ? 'pill-red' : status === 'DISPATCHED' ? 'pill-blue' : 'pill-amber';
               return (
                 <div key={status} className="row" style={{ gap: 12 }}>
@@ -296,7 +311,7 @@ export default function DashboardPage() {
             <div className="divider" style={{ margin: '4px 0' }} />
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span className="muted" style={{ fontSize: 13 }}>Total fleet</span>
-              <span className="mono strong" style={{ fontSize: 14, color: 'var(--ink)' }}>{liveVehicles.length} units</span>
+              <span className="mono strong" style={{ fontSize: 14, color: 'var(--ink)' }}>{fleetStatus?.total ?? 0} units</span>
             </div>
             {lastUpdatedAt && (
               <div className="muted" style={{ fontSize: 12 }}>

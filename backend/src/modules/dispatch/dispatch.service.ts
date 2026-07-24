@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { haversineDistance } from '../../shared/utils/haversine.js';
 import { FleetService } from '../fleet/fleet.service.js';
-import { IncidentStatus, Role } from '../../shared/types/index.js';
+import { IncidentStatus, Role, TaskStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 
 export class DispatchService {
@@ -9,6 +9,40 @@ export class DispatchService {
 
   constructor(private app: FastifyInstance) {
     this.fleetService = new FleetService(app);
+  }
+
+  /**
+   * Real fleet operational breakdown, derived from vehicle flags + each
+   * vehicle's current active (non-terminal) task.
+   */
+  async getFleetStatus() {
+    const [vehicles, activeTasks] = await Promise.all([
+      this.app.prisma.vehicle.findMany({ select: { id: true, isActive: true, status: true } }),
+      this.app.prisma.task.findMany({
+        where: { status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] } },
+        select: { vehicleId: true, status: true },
+      }),
+    ]);
+
+    const taskByVehicle = new Map<string, string>();
+    for (const t of activeTasks) taskByVehicle.set(t.vehicleId, t.status);
+
+    const counts = {
+      READY: 0, DISPATCHED: 0, ON_SCENE: 0, RETURNING: 0, OFFLINE: 0, MAINTENANCE: 0,
+      total: vehicles.length,
+    };
+
+    for (const v of vehicles) {
+      if (!v.isActive) { counts.OFFLINE++; continue; }
+      if (v.status === 'MAINTENANCE') { counts.MAINTENANCE++; continue; }
+      const ts = taskByVehicle.get(v.id);
+      if (!ts) { counts.READY++; continue; }
+      if (ts === TaskStatus.AT_SCENE) counts.ON_SCENE++;
+      else if (ts === TaskStatus.PATIENT_PICKED || ts === TaskStatus.AT_HOSPITAL) counts.RETURNING++;
+      else counts.DISPATCHED++; // PENDING / ACCEPTED / EN_ROUTE
+    }
+
+    return counts;
   }
 
   /**
