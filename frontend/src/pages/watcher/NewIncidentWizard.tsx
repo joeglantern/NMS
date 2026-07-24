@@ -72,7 +72,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | boolean }
 
 // ── Wizard stepper ────────────────────────────────────────────────────────────
 
-const STEPS = ['Patient', 'Location', 'Review'];
+const STEPS = ['Alert', 'Patient', 'Incident', 'Location', 'Review'];
 
 function WizardStepper({ current }: { current: number }) {
   return (
@@ -287,7 +287,7 @@ export default function NewIncidentWizard() {
   const ended         = (location.state as any)?.ended;
   const surveillance  = (location.state as any)?.surveillance;
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [vitals, setVitals] = useState<VitalsForm>(defaultVitals);
   const setVit = (u: Partial<VitalsForm>) => setVitals(p => ({ ...p, ...u }));
@@ -319,23 +319,20 @@ export default function NewIncidentWizard() {
 
 
 
-  // ── Step validation ────────────────────────────────────────────────────────
-  const canGoToStep2 = !!form.alertAt && !!form.alertMode && !!form.chiefComplaint.trim()
-    && !!form.alertNature;
-  const canGoToStep3 = !!form.locationName.trim() && !!form.subCounty;
-  const canSubmit    = canGoToStep2 && canGoToStep3;
+  // ── Step validation (Alert · Patient · Incident · Location · Review) ─────────
+  const step1Ok = !!form.alertAt && !!form.alertMode;                 // Alert
+  const step3Ok = !!form.alertNature && !!form.chiefComplaint.trim(); // Incident
+  const step4Ok = !!form.locationName.trim() && !!form.subCounty;     // Location
+  const canSubmit = step1Ok && step3Ok && step4Ok;
 
-  const step1Missing = [
-    !form.alertAt          && 'date & time',
-    !form.alertMode        && 'alert mode',
-    !form.alertNature      && 'nature of alert',
-    !form.chiefComplaint   && 'chief complaint',
-  ].filter(Boolean) as string[];
-
-  const step2Missing = [
-    !form.locationName && 'location',
-    !form.subCounty    && 'sub-county',
-  ].filter(Boolean) as string[];
+  const stepOk: Record<number, boolean> = { 1: step1Ok, 2: true, 3: step3Ok, 4: step4Ok, 5: canSubmit };
+  const missingByStep: Record<number, string[]> = {
+    1: [!form.alertAt && 'date & time', !form.alertMode && 'alert mode'].filter(Boolean) as string[],
+    2: [],
+    3: [!form.alertNature && 'nature of alert', !form.chiefComplaint && 'chief complaint'].filter(Boolean) as string[],
+    4: [!form.locationName && 'location', !form.subCounty && 'sub-county'].filter(Boolean) as string[],
+    5: [],
+  };
 
   // ── Sub-county detection ───────────────────────────────────────────────────
   function detectSubCounty(address: Record<string, string>): string {
@@ -535,10 +532,11 @@ export default function NewIncidentWizard() {
   }
 
   // ── Step titles ────────────────────────────────────────────────────────────
-  const stepTitle = step === 1
-    ? 'Patient & Alert Details'
-    : step === 2
-    ? 'Incident Location'
+  const stepTitle =
+    step === 1 ? 'Alert Details'
+    : step === 2 ? 'Patient Details'
+    : step === 3 ? 'Incident Details'
+    : step === 4 ? 'Incident Location'
     : 'Review & Submit';
 
   return (
@@ -551,7 +549,7 @@ export default function NewIncidentWizard() {
       >
         <div className="flex-1">
           <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--muted)' }}>
-            New Incident · Step {step} of 3
+            New Incident · Step {step} of {STEPS.length}
           </p>
           <h1 className="text-base font-bold text-brand-green">{stepTitle}</h1>
         </div>
@@ -570,13 +568,9 @@ export default function NewIncidentWizard() {
       {/* ── Step content ── */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-5">
 
-        {/* ─────────────── STEP 1: Patient & Alert ─────────────── */}
+        {/* ─────────────── STEP 1: Alert ─────────────── */}
         {step === 1 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
-
-            {/* Left column */}
-            <div className="space-y-4">
-
+          <div className="max-w-3xl mx-auto space-y-4">
               <SectionCard title="Alert" icon={Phone}>
                 <Field>
                   <Label required>Alert Date &amp; Time</Label>
@@ -615,7 +609,12 @@ export default function NewIncidentWizard() {
                   </Field>
                 </div>
               </SectionCard>
+          </div>
+        )}
 
+        {/* ─────────────── STEP 2: Patient ─────────────── */}
+        {step === 2 && (
+          <div className="max-w-3xl mx-auto space-y-4">
               <SectionCard title="Patient" icon={User}>
                 <Field>
                   <Label>Patient Name</Label>
@@ -729,10 +728,12 @@ export default function NewIncidentWizard() {
                   </div>
                 </label>
               </SectionCard>
-            </div>
+          </div>
+        )}
 
-            {/* Right column */}
-            <div className="space-y-4">
+        {/* ─────────────── STEP 3: Incident Details ─────────────── */}
+        {step === 3 && (
+          <div className="max-w-3xl mx-auto space-y-4">
               <SectionCard title="Incident Details" icon={FirstAid}>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Nature of Alert */}
@@ -991,12 +992,11 @@ export default function NewIncidentWizard() {
 
                 </SectionCard>
               )}
-            </div>
           </div>
         )}
 
-        {/* ─────────────── STEP 2: Location ─────────────── */}
-        {step === 2 && (
+        {/* ─────────────── STEP 4: Location ─────────────── */}
+        {step === 4 && (
           <div className="max-w-3xl mx-auto space-y-4">
             <SectionCard title="Incident Location" icon={MapPin}>
               <Field>
@@ -1108,8 +1108,8 @@ export default function NewIncidentWizard() {
           </div>
         )}
 
-        {/* ─────────────── STEP 3: Review & Submit ─────────────── */}
-        {step === 3 && (
+        {/* ─────────────── STEP 5: Review & Submit ─────────────── */}
+        {step === 5 && (
           <div className="max-w-4xl mx-auto space-y-4">
 
             {/* Bento review grid */}
@@ -1121,13 +1121,13 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="Notifier"   value={form.notifierName ? `${form.notifierName} · ${form.notifierPhone}` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 2 · Location" onEdit={() => setStep(2)}>
+              <ReviewCard title="Step 4 · Location" onEdit={() => setStep(4)}>
                 <ReviewRow label="Location"   value={form.locationName} />
                 <ReviewRow label="Sub-County" value={form.subCounty} />
                 <ReviewRow label="Coords"     value={form.lat ? `${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 1 · Patient" onEdit={() => setStep(1)}>
+              <ReviewCard title="Step 2 · Patient" onEdit={() => setStep(2)}>
                 <ReviewRow label="Name"        value={form.patientName} />
                 <ReviewRow label="Patient Phone" value={form.patientContact} />
                 <ReviewRow label="Age / Sex"   value={[form.patientAge, form.patientGender].filter(Boolean).join(' · ') || undefined} />
@@ -1135,7 +1135,7 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="MCI"         value={form.massCasualty ? `Yes (${form.massCasualtyCount || '?'} casualties)` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 1 · Incident Details" onEdit={() => setStep(1)}>
+              <ReviewCard title="Step 3 · Incident Details" onEdit={() => setStep(3)}>
                 <ReviewRow label="Nature"    value={[form.alertNature, form.alertNatureDetail].filter(Boolean).join(' → ') || undefined} />
                 <ReviewRow label="Complaint" value={form.chiefComplaint} />
                 <ReviewRow label="Temp"      value={vitals.temperature} />
@@ -1149,7 +1149,7 @@ export default function NewIncidentWizard() {
               </ReviewCard>
 
               {isMaternity && (
-                <ReviewCard title="Maternity Vitals" onEdit={() => setStep(1)} className="md:col-span-2">
+                <ReviewCard title="Maternity Vitals" onEdit={() => setStep(3)} className="md:col-span-2">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8">
                     <ReviewRow label="Admission"       value={mv.admissionDateTime} />
                     <ReviewRow label="Parity"          value={mv.parity} />
@@ -1213,7 +1213,7 @@ export default function NewIncidentWizard() {
       </div>
 
       {/* ── Alert Surveillance panel (Step 3 only) ── */}
-      {showSurveillance && step === 3 && (
+      {showSurveillance && step === 5 && (
         <div
           className="border-t-2 border-amber-500/30 px-6 py-4 shrink-0"
           style={{ background: 'var(--surface)' }}
@@ -1256,7 +1256,7 @@ export default function NewIncidentWizard() {
       )}
 
       {/* ── End Case reason panel (Step 3 only) ── */}
-      {showEndReason && step === 3 && (
+      {showEndReason && step === 5 && (
         <div
           className="border-t-2 border-status-danger/30 px-6 py-4 shrink-0"
           style={{ background: 'var(--surface)' }}
@@ -1309,7 +1309,7 @@ export default function NewIncidentWizard() {
         {/* Back / Cancel */}
         <button
           type="button"
-          onClick={() => step === 1 ? navigate(-1) : setStep((s) => (s - 1) as 1 | 2 | 3)}
+          onClick={() => step === 1 ? navigate(-1) : setStep((s) => (s - 1) as 1 | 2 | 3 | 4 | 5)}
           className="btn btn-ghost"
         >
           {step === 1 ? (
@@ -1321,46 +1321,27 @@ export default function NewIncidentWizard() {
 
         <div className="flex items-center gap-3">
 
-          {/* Step 1 → 2 */}
-          {step === 1 && (
+          {/* Steps 1–4 → Next */}
+          {step < 5 && (
             <>
-              {!canGoToStep2 && step1Missing.length > 0 && (
+              {!stepOk[step] && missingByStep[step].length > 0 && (
                 <p className="text-xs max-w-xs text-right hidden sm:block" style={{ color: 'var(--muted)' }}>
-                  Required: {step1Missing.join(', ')}
+                  Required: {missingByStep[step].join(', ')}
                 </p>
               )}
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                disabled={!canGoToStep2}
+                onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3 | 4 | 5)}
+                disabled={!stepOk[step]}
                 className="btn btn-primary"
               >
-                Continue <ArrowRight size={16} weight="bold" />
+                {step === 4 ? 'Review' : 'Continue'} <ArrowRight size={16} weight="bold" />
               </button>
             </>
           )}
 
-          {/* Step 2 → 3 */}
-          {step === 2 && (
-            <>
-              {!canGoToStep3 && step2Missing.length > 0 && (
-                <p className="text-xs max-w-xs text-right hidden sm:block" style={{ color: 'var(--muted)' }}>
-                  Required: {step2Missing.join(', ')}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                disabled={!canGoToStep3}
-                className="btn btn-primary"
-              >
-                Review <ArrowRight size={16} weight="bold" />
-              </button>
-            </>
-          )}
-
-          {/* Step 3 actions */}
-          {step === 3 && (
+          {/* Step 5 actions */}
+          {step === 5 && (
             <>
               <button
                 type="button"
