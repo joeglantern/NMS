@@ -119,6 +119,7 @@ export class IncidentService {
       chiefComplaint: string;
       locationName: string;
       subCounty: string;
+      subCountySource?: 'AUTO' | 'MANUAL';
       lat?: number;
       lng?: number;
       alertMode?: string;
@@ -167,6 +168,7 @@ export class IncidentService {
         chiefComplaint: data.chiefComplaint,
         locationName: data.locationName,
         subCounty: data.subCounty,
+        subCountySource: data.subCountySource,
         lat: data.lat,
         lng: data.lng,
         alertMode: data.alertMode,

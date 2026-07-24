@@ -9,6 +9,7 @@ const createIncidentSchema = z.object({
   chiefComplaint: z.string().min(3, 'Chief complaint is required'),
   locationName: z.string().min(2, 'Location name is required'),
   subCounty: z.string().min(2, 'Sub-county is required'),
+  subCountySource: z.enum(['AUTO', 'MANUAL']).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   alertMode: z.string().optional(),

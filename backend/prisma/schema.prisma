@@ -131,6 +131,7 @@ model Incident {
   chiefComplaint String         @map("chief_complaint") @db.Text
   locationName   String         @map("location_name")
   subCounty      String         @map("sub_county")
+  subCountySource String?       @map("sub_county_source") // AUTO | MANUAL — how the sub-county was set
   lat            Float?
   lng            Float?
   alertMode      String?        @map("alert_mode")

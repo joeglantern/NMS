@@ -303,6 +303,8 @@ export default function NewIncidentWizard() {
   const [showSurveillance, setShowSurveillance]   = useState(false);
   const [surveillanceNote, setSurveillanceNote]   = useState('');
   const set = (updates: Partial<FormState>) => setForm(prev => ({ ...prev, ...updates }));
+  // Provenance of the sub-county: AUTO when detected from the location, MANUAL when the watcher sets it.
+  const [subCountySource, setSubCountySource] = useState<'AUTO' | 'MANUAL' | ''>('');
 
   // ── Nature of alert options (accessible to all roles) ────────────────────
   const { data: natureOptions = [] } = useQuery<{ nature: string; details: string[] }[]>({
@@ -411,6 +413,7 @@ export default function NewIncidentWizard() {
         lng: details.lng,
         ...(detectedSub ? { subCounty: detectedSub } : {}),
       });
+      if (detectedSub) setSubCountySource('AUTO');
     } catch {
       set({ locationName: description.split(',').slice(0, 2).join(',').trim() });
     }
@@ -422,6 +425,7 @@ export default function NewIncidentWizard() {
     const name        = s.display_name.split(',').slice(0, 2).join(',').trim();
     const detectedSub = detectSubCounty(s.address ?? {});
     set({ locationName: name, lat: parseFloat(s.lat), lng: parseFloat(s.lon), ...(detectedSub ? { subCounty: detectedSub } : {}) });
+    if (detectedSub) setSubCountySource('AUTO');
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -439,6 +443,7 @@ export default function NewIncidentWizard() {
         const name        = data.display_name.split(',').slice(0, 2).join(',').trim();
         const detectedSub = detectSubCounty(data.address ?? {});
         set({ locationName: name, ...(detectedSub ? { subCounty: detectedSub } : {}) });
+        if (detectedSub) setSubCountySource('AUTO');
       }
     } catch {} finally {
       setIsReverseGeocoding(false);
@@ -453,6 +458,7 @@ export default function NewIncidentWizard() {
     notifierDetails:       form.notifierName ? [{ name: form.notifierName, phone: form.notifierPhone }] : undefined,
     locationName:          form.locationName,
     subCounty:             form.subCounty,
+    subCountySource:       subCountySource || undefined,
     lat:                   form.lat,
     lng:                   form.lng,
     patientName:           form.patientName  || undefined,
@@ -1131,11 +1137,19 @@ export default function NewIncidentWizard() {
               </div>
 
               <Field>
-                <Label required>Sub-County</Label>
+                <div className="flex items-center gap-2 mb-1">
+                  <Label required>Sub-County</Label>
+                  {form.subCounty && subCountySource === 'AUTO' && (
+                    <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#047857' }}>Auto-filled</span>
+                  )}
+                  {form.subCounty && subCountySource === 'MANUAL' && (
+                    <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>Manual</span>
+                  )}
+                </div>
                 <CreatableCombobox
                   options={SUB_COUNTIES}
                   value={form.subCounty}
-                  onChange={(v) => set({ subCounty: v })}
+                  onChange={(v) => { set({ subCounty: v }); setSubCountySource(v ? 'MANUAL' : ''); }}
                   onCreateOption={() => {}}
                   placeholder="Auto-fills from the location — or type to search / add your own"
                 />
@@ -1159,7 +1173,7 @@ export default function NewIncidentWizard() {
 
               <ReviewCard title="Step 4 · Location" onEdit={() => setStep(4)}>
                 <ReviewRow label="Location"   value={form.locationName} />
-                <ReviewRow label="Sub-County" value={form.subCounty} />
+                <ReviewRow label="Sub-County" value={form.subCounty ? `${form.subCounty}${subCountySource ? ` (${subCountySource === 'AUTO' ? 'auto-filled' : 'manual'})` : ''}` : undefined} />
                 <ReviewRow label="Coords"     value={form.lat ? `${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}` : undefined} />
               </ReviewCard>
 

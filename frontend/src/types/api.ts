@@ -139,6 +139,7 @@ export interface Incident {
   chiefComplaint: string;
   locationName: string;
   subCounty: string;
+  subCountySource?: 'AUTO' | 'MANUAL' | null;
   lat?: number;
   lng?: number;
   alertMode?: string;

@@ -658,7 +658,15 @@ export default function IncidentDetailPage() {
                     <MapPin size={16} weight="fill" className="text-brand-green mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-brand-teal">{incident.locationName}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{incident.subCounty}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                        {incident.subCounty}
+                        {incident.subCountySource === 'AUTO' && (
+                          <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#047857' }}>auto</span>
+                        )}
+                        {incident.subCountySource === 'MANUAL' && (
+                          <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>manual</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                 )}
