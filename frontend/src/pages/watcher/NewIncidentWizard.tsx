@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
+import CreatableCombobox from '../../components/shared/CreatableCombobox';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePlacesAutocomplete } from '../../hooks/usePlacesAutocomplete';
 
@@ -348,13 +349,17 @@ export default function NewIncidentWizard() {
   }
 
   function detectSubCounty(address: Record<string, string>): string {
-    return matchSubCounty([
+    const canonical = matchSubCounty([
       address.city_district,
       address.suburb,
       address.county,
       address.state_district,
       address.municipality,
     ]);
+    if (canonical) return canonical;
+    // No official sub-county matched — fall back to the most specific area name
+    // so the field still auto-fills (it's free-text; the watcher can adjust).
+    return address.city_district || address.suburb || address.municipality || '';
   }
 
   // ── Location autocomplete — Google Places when key present, Nominatim fallback ──
@@ -1127,10 +1132,13 @@ export default function NewIncidentWizard() {
 
               <Field>
                 <Label required>Sub-County</Label>
-                <select className={selectCls} value={form.subCounty} onChange={e => set({ subCounty: e.target.value })}>
-                  <option value="">Select sub-county...</option>
-                  {SUB_COUNTIES.map(s => <option key={s}>{s}</option>)}
-                </select>
+                <CreatableCombobox
+                  options={SUB_COUNTIES}
+                  value={form.subCounty}
+                  onChange={(v) => set({ subCounty: v })}
+                  onCreateOption={() => {}}
+                  placeholder="Auto-fills from the location — or type to search / add your own"
+                />
               </Field>
             </SectionCard>
           </div>
