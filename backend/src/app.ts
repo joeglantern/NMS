@@ -28,6 +28,11 @@ import { TrackingService } from './modules/tracking/tracking.service.js';
  */
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
+    // Fastify's default bodyLimit is 1 MB and it gates the WHOLE request before
+    // the multipart parser runs — so without this, any upload over 1 MB fails
+    // with HTTP 413 regardless of the multipart fileSize limit. Raised to an
+    // effectively-unlimited 1 GB backstop so PCRs are never rejected for size.
+    bodyLimit: 1024 * 1024 * 1024,
     // Pino logger — structured, high-performance (built into Fastify)
     logger: {
       level: process.env.LOG_LEVEL ?? 'info',
@@ -61,13 +66,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ── Multipart uploads (PCR images/docs, check-in selfies, etc.) ─────────────
-  // No practical size cap on uploads (PCRs must never be rejected for size).
-  // The 1 GB ceiling is only a runaway/disk-fill backstop — a real PCR or
-  // selfie is nowhere near it. Raise or remove if ever needed.
+  // Pairs with the bodyLimit above — both must be raised or large uploads 413.
+  // The 1 GB ceiling is only a runaway/disk-fill backstop; a real PCR or selfie
+  // is nowhere near it.
   await app.register(multipart, {
     limits: {
       fileSize: 1024 * 1024 * 1024, // 1 GB — effectively unlimited for PCRs
       files: 1,
+      fields: 20, // generous; check-in sends lat/lng, PCR sends an optional note
     },
   });
 
