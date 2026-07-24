@@ -10,7 +10,21 @@ export interface PlaceDetails {
   lat: number;
   lng: number;
   name: string;
+  // Address-component names useful for detecting the sub-county / constituency.
+  subCountyCandidates: string[];
 }
+
+// Google address-component types that can carry a Nairobi sub-county/constituency.
+const SUBCOUNTY_TYPES = new Set([
+  'administrative_area_level_2',
+  'administrative_area_level_3',
+  'administrative_area_level_4',
+  'sublocality',
+  'sublocality_level_1',
+  'sublocality_level_2',
+  'locality',
+  'neighborhood',
+]);
 
 export function usePlacesAutocomplete(countryCode = 'ke') {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -62,10 +76,14 @@ export function usePlacesAutocomplete(countryCode = 'ke') {
       geocoderRef.current.geocode({ placeId }, (results, status) => {
         if (status === google.maps.GeocoderStatus.OK && results?.[0]) {
           const r = results[0];
+          const subCountyCandidates = (r.address_components ?? [])
+            .filter(c => c.types.some(t => SUBCOUNTY_TYPES.has(t)))
+            .map(c => c.long_name);
           resolve({
             lat: r.geometry.location.lat(),
             lng: r.geometry.location.lng(),
             name: r.formatted_address.split(',').slice(0, 2).join(',').trim(),
+            subCountyCandidates,
           });
         } else {
           reject(new Error('Geocode failed'));

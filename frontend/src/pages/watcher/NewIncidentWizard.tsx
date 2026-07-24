@@ -335,22 +335,26 @@ export default function NewIncidentWizard() {
   };
 
   // ── Sub-county detection ───────────────────────────────────────────────────
+  // Match any of the given place strings against the known Nairobi sub-counties.
+  function matchSubCounty(candidates: string[]): string {
+    const lowered = candidates.filter(Boolean).map(s => s.toLowerCase());
+    for (const sub of SUB_COUNTIES) {
+      const subLower = sub.toLowerCase();
+      if (lowered.some(c => c.includes(subLower) || subLower.includes(c))) {
+        return sub;
+      }
+    }
+    return '';
+  }
+
   function detectSubCounty(address: Record<string, string>): string {
-    const candidates = [
+    return matchSubCounty([
       address.city_district,
       address.suburb,
       address.county,
       address.state_district,
       address.municipality,
-    ].filter(Boolean).map(s => s.toLowerCase());
-
-    for (const sub of SUB_COUNTIES) {
-      const subLower = sub.toLowerCase();
-      if (candidates.some(c => c.includes(subLower) || subLower.includes(c))) {
-        return sub;
-      }
-    }
-    return '';
+    ]);
   }
 
   // ── Location autocomplete — Google Places when key present, Nominatim fallback ──
@@ -377,7 +381,13 @@ export default function NewIncidentWizard() {
   const selectGoogleSuggestion = async (placeId: string, description: string) => {
     try {
       const details = await places.getDetails(placeId);
-      set({ locationName: details.name || description.split(',').slice(0, 2).join(',').trim(), lat: details.lat, lng: details.lng });
+      const detectedSub = matchSubCounty(details.subCountyCandidates);
+      set({
+        locationName: details.name || description.split(',').slice(0, 2).join(',').trim(),
+        lat: details.lat,
+        lng: details.lng,
+        ...(detectedSub ? { subCounty: detectedSub } : {}),
+      });
     } catch {
       set({ locationName: description.split(',').slice(0, 2).join(',').trim() });
     }
