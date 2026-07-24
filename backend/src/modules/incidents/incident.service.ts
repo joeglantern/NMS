@@ -53,10 +53,18 @@ export class IncidentService {
     const vars = this.caseVars(incident);
     (async () => {
       try {
-        if (incident.isGbvCase) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
-        if (incident.massCasualty) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'MCI', vars });
+        if (incident.isGbvCase) {
+          // Matching GBV partners + the internal GBV team.
+          await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
+          await this.sms.notifyTeamGroupForCase({ incidentId: incident.id, tag: 'GBV', group: 'GBV', vars });
+        }
+        if (incident.massCasualty) {
+          // Matching MCI partners + the surveillance team.
+          await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'MCI', vars });
+          await this.sms.notifyTeamGroupForCase({ incidentId: incident.id, tag: 'MCI', group: 'SURVEILLANCE', vars });
+        }
       } catch (err) {
-        this.app.log.error({ err }, 'partner auto-notify failed');
+        this.app.log.error({ err }, 'case auto-notify failed');
       }
     })();
   }

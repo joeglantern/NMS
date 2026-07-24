@@ -185,6 +185,38 @@ export class SmsService {
     });
   }
 
+  /**
+   * SMS an internal team contact group for a GBV/MCI case (e.g. the GBV team or
+   * the surveillance team). Deduped per incident+tag+group, separate from the
+   * partner send so both can fire for the same case.
+   */
+  async notifyTeamGroupForCase(opts: {
+    incidentId: string;
+    tag: 'GBV' | 'MCI';
+    group: string;
+    vars: Record<string, string | number | undefined>;
+  }) {
+    const label = `${opts.tag}:${opts.group}`;
+    const existing = await this.app.prisma.smsMessage.findFirst({
+      where: { incidentId: opts.incidentId, category: 'AUTO_TEAM', groupLabel: label },
+    });
+    if (existing) return { total: 0, sent: 0, failed: 0, skipped: true };
+
+    const templates = await this.getTemplates();
+    const tpl = templates.find((t) => t.key === opts.tag);
+    if (!tpl) return { total: 0, sent: 0, failed: 0 };
+
+    const message = this.renderTemplate(tpl.body, opts.vars);
+    const recipients = await this.resolveRecipients({ contactGroups: [opts.group] });
+    if (!recipients.length) return { total: 0, sent: 0, failed: 0 };
+
+    return this.sendToRecipients(recipients, message, {
+      category: 'AUTO_TEAM',
+      groupLabel: label,
+      incidentId: opts.incidentId,
+    });
+  }
+
   async notifySurveillance(opts: { incidentId?: string; vars: Record<string, string | number | undefined> }) {
     const templates = await this.getTemplates();
     const tpl = templates.find((t) => t.key === 'SURVEILLANCE');
