@@ -206,6 +206,7 @@ type MaternityVitalsForm = {
   glucoseInUrine: string; urineOutput: string;
   deliveryDateTime: string; modeOfDelivery: string; newbornGender: string;
   birthWeight: string; conditionOfBaby: string; medicationNewborn: string;
+  apgar1Min: string; apgar5Min: string; apgar10Min: string;
 };
 
 const defaultMV: MaternityVitalsForm = {
@@ -218,6 +219,7 @@ const defaultMV: MaternityVitalsForm = {
   glucoseInUrine: '', urineOutput: '',
   deliveryDateTime: '', modeOfDelivery: '', newbornGender: '',
   birthWeight: '', conditionOfBaby: '', medicationNewborn: '',
+  apgar1Min: '', apgar5Min: '', apgar10Min: '',
 };
 
 // ── Form state ────────────────────────────────────────────────────────────────
@@ -246,6 +248,8 @@ type FormState = {
   watcherComments: string;
   preHospitalManagement: string;
   placeOfReferral: string;
+  healthcareWorkerName: string;
+  healthcareWorkerContact: string;
   isGbvCase: boolean;
 };
 
@@ -273,6 +277,8 @@ const defaultForm: FormState = {
   watcherComments: '',
   preHospitalManagement: '',
   placeOfReferral: '',
+  healthcareWorkerName: '',
+  healthcareWorkerContact: '',
   isGbvCase: false,
 };
 
@@ -475,6 +481,8 @@ export default function NewIncidentWizard() {
     watcherComments:       form.watcherComments || undefined,
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
+    healthcareWorkerName:    form.healthcareWorkerName || undefined,
+    healthcareWorkerContact: form.healthcareWorkerContact || undefined,
     isGbvCase:             form.isGbvCase || undefined,
     vitals:                vitals,
     maternityVitals:       isMaternity ? mv : undefined,
@@ -883,6 +891,29 @@ export default function NewIncidentWizard() {
                   />
                 </Field>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <Field>
+                    <Label>Healthcare Worker Contacted</Label>
+                    <input
+                      type="text"
+                      placeholder="Name of HCW contacted"
+                      className={inputCls}
+                      value={form.healthcareWorkerName}
+                      onChange={e => set({ healthcareWorkerName: e.target.value })}
+                    />
+                  </Field>
+                  <Field>
+                    <Label>HCW Phone</Label>
+                    <input
+                      type="tel"
+                      placeholder="e.g. 0712 345 678"
+                      className={inputCls}
+                      value={form.healthcareWorkerContact}
+                      onChange={e => set({ healthcareWorkerContact: e.target.value })}
+                    />
+                  </Field>
+                </div>
+
               </SectionCard>
 
               {/* ── Maternity Vitals — only when nature is Maternity ── */}
@@ -1020,7 +1051,19 @@ export default function NewIncidentWizard() {
                       </Field>
                       <Field>
                         <Label>Condition of Baby</Label>
-                        <input type="text" placeholder="APGAR / well / distressed..." className={inputCls} value={mv.conditionOfBaby} onChange={e => setMat({ conditionOfBaby: e.target.value })} />
+                        <input type="text" placeholder="well / distressed..." className={inputCls} value={mv.conditionOfBaby} onChange={e => setMat({ conditionOfBaby: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>APGAR @ 1 min</Label>
+                        <input type="number" min={0} max={10} placeholder="0–10" className={inputCls} value={mv.apgar1Min} onChange={e => setMat({ apgar1Min: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>APGAR @ 5 min</Label>
+                        <input type="number" min={0} max={10} placeholder="0–10" className={inputCls} value={mv.apgar5Min} onChange={e => setMat({ apgar5Min: e.target.value })} />
+                      </Field>
+                      <Field>
+                        <Label>APGAR @ 10 min</Label>
+                        <input type="number" min={0} max={10} placeholder="0–10" className={inputCls} value={mv.apgar10Min} onChange={e => setMat({ apgar10Min: e.target.value })} />
                       </Field>
                       <Field>
                         <Label>Medication (Newborn)</Label>
@@ -1226,6 +1269,7 @@ export default function NewIncidentWizard() {
                     <ReviewRow label="Gender"          value={mv.newbornGender} />
                     <ReviewRow label="Birth Weight"    value={mv.birthWeight} />
                     <ReviewRow label="Baby Condition"  value={mv.conditionOfBaby} />
+                    <ReviewRow label="APGAR (1/5/10)"  value={[mv.apgar1Min, mv.apgar5Min, mv.apgar10Min].some(Boolean) ? `${mv.apgar1Min || '–'} / ${mv.apgar5Min || '–'} / ${mv.apgar10Min || '–'}` : undefined} />
                     <ReviewRow label="Meds (Newborn)"  value={mv.medicationNewborn} />
                   </div>
                 </ReviewCard>

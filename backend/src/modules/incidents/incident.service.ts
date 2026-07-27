@@ -144,6 +144,8 @@ export class IncidentService {
       ambulanceUsed?: string;
       targetFacilityId?: string;
       surveillanceNote?: string;
+      healthcareWorkerName?: string;
+      healthcareWorkerContact?: string;
       isGbvCase?: boolean;
       vitals?: {
         temperature?: string;
@@ -193,6 +195,8 @@ export class IncidentService {
         ambulanceUsed: data.ambulanceUsed,
         targetFacilityId: data.targetFacilityId,
         surveillanceNote: data.surveillanceNote,
+        healthcareWorkerName: data.healthcareWorkerName,
+        healthcareWorkerContact: data.healthcareWorkerContact,
         isGbvCase: data.isGbvCase ?? false,
         vitals: data.vitals ?? undefined,
         maternityVitals: data.maternityVitals ?? undefined,
@@ -318,6 +322,8 @@ export class IncidentService {
       placeOfReferral?: string;
       targetFacilityId?: string;
       hospitalLevelRequired?: number;
+      healthcareWorkerName?: string;
+      healthcareWorkerContact?: string;
       preHospitalManagement?: string;
       partnerNotes?: string;
       vitals?: Record<string, unknown>;
@@ -343,6 +349,7 @@ export class IncidentService {
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
       'alertNatureDetail', 'placeOfReferral', 'targetFacilityId', 'hospitalLevelRequired',
+      'healthcareWorkerName', 'healthcareWorkerContact',
       'preHospitalManagement', 'partnerNotes', 'pcrUrl', 'vitals', 'maternityVitals',
     ] as const;
 

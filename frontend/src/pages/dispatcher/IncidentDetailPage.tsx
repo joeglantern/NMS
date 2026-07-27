@@ -789,6 +789,14 @@ export default function IncidentDetailPage() {
                   <p className="text-sm text-brand-teal">{incident.nextOfKin}</p>
                 </div>
               )}
+              {(incident.healthcareWorkerName || incident.healthcareWorkerContact) && (
+                <div className="col-span-2">
+                  <label className="text-xs font-medium text-slate-text block mb-1">Healthcare Worker Contacted</label>
+                  <p className="text-sm text-brand-teal">
+                    {[incident.healthcareWorkerName, incident.healthcareWorkerContact].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1082,7 +1090,7 @@ export default function IncidentDetailPage() {
               <div className="p-5 flex flex-col gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest block mb-1.5">
-                    Pre-Hospital Management
+                    Management Given
                   </label>
                   <textarea
                     rows={3}
@@ -1249,7 +1257,7 @@ export default function IncidentDetailPage() {
                   </div>
                 </div>
               )}
-              {(mv.deliveryDateTime || mv.modeOfDelivery || mv.newbornGender || mv.birthWeight || mv.conditionOfBaby || mv.medicationNewborn) && (
+              {(mv.deliveryDateTime || mv.modeOfDelivery || mv.newbornGender || mv.birthWeight || mv.conditionOfBaby || mv.medicationNewborn || mv.apgar1Min || mv.apgar5Min || mv.apgar10Min) && (
                 <div className="border-t border-surface-border pt-4">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Newborn</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -1258,6 +1266,7 @@ export default function IncidentDetailPage() {
                     {row('Gender', mv.newbornGender)}
                     {row('Birth Weight', mv.birthWeight)}
                     {row('Condition', mv.conditionOfBaby)}
+                    {row('APGAR (1/5/10)', [mv.apgar1Min, mv.apgar5Min, mv.apgar10Min].some(Boolean) ? `${mv.apgar1Min || '–'} / ${mv.apgar5Min || '–'} / ${mv.apgar10Min || '–'}` : undefined)}
                     {row('Meds (Newborn)', mv.medicationNewborn)}
                   </div>
                 </div>

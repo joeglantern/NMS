@@ -166,6 +166,10 @@ model Incident {
   ambulanceUsed    String? @map("ambulance_used")
   surveillanceNote String? @map("surveillance_note") @db.Text
 
+  // Healthcare worker contacted about this case (name + phone)
+  healthcareWorkerName    String? @map("healthcare_worker_name")
+  healthcareWorkerContact String? @map("healthcare_worker_contact")
+
   // Maternity vitals (populated when alertNature is Maternity)
   maternityVitals Json? @map("maternity_vitals")
 

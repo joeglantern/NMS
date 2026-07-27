@@ -111,6 +111,9 @@ export interface MaternityVitals {
   newbornGender?: string;
   birthWeight?: string;
   conditionOfBaby?: string;
+  apgar1Min?: string;
+  apgar5Min?: string;
+  apgar10Min?: string;
   medicationNewborn?: string;
 }
 
@@ -156,6 +159,8 @@ export interface Incident {
   alertNatureDetail?: string;
   originOfAlert?: string;
   placeOfReferral?: string;
+  healthcareWorkerName?: string;
+  healthcareWorkerContact?: string;
   targetFacilityId?: string | null;
   targetFacility?: Facility | null;
   massCasualty: boolean;

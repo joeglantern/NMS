@@ -33,6 +33,8 @@ const createIncidentSchema = z.object({
   ambulanceUsed: z.string().optional(),
   targetFacilityId: z.string().optional(),
   surveillanceNote: z.string().optional(),
+  healthcareWorkerName: z.string().optional(),
+  healthcareWorkerContact: z.string().optional(),
   isGbvCase: z.boolean().optional(),
   vitals: z.object({
   temperature: z.string().optional(),
@@ -65,6 +67,8 @@ const updateIncidentSchema = z.object({
   placeOfReferral: z.string().optional(),
   targetFacilityId: z.string().optional().or(z.literal('')),
   hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
+  healthcareWorkerName: z.string().optional(),
+  healthcareWorkerContact: z.string().optional(),
   preHospitalManagement: z.string().optional(),
   partnerNotes: z.string().optional(),
   vitals: z.object({
