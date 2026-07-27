@@ -29,6 +29,18 @@ export default function QueuePage() {
     },
   });
 
+  // History lookup — searches ALL cases (incl. National ID / NHIF / phone) on the
+  // server, not just the loaded queue. Activates once 2+ characters are typed.
+  const searching = searchTerm.trim().length >= 2;
+  const { data: searchResults, isLoading: isSearching } = useQuery({
+    queryKey: ['incidents', 'search', searchTerm.trim()],
+    queryFn: async () => {
+      const res = await api.get(`/incidents?limit=100&search=${encodeURIComponent(searchTerm.trim())}`);
+      return res.data.data as Incident[];
+    },
+    enabled: searching,
+  });
+
   useEffect(() => {
     socket.connect();
     socket.on('incident:new', (incident: Incident) => {
@@ -47,21 +59,15 @@ export default function QueuePage() {
     };
   }, [queryClient]);
 
-  const filteredIncidents = (
-    incidents?.filter((inc) => {
-      const matchesSearch =
-  inc.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  inc.chiefComplaint.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  (inc.patientName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-  (inc.patientContact ?? '').includes(searchTerm) ||
-  (inc.nextOfKinPhone ?? '').includes(searchTerm);
-      const matchesStatus = statusFilter === 'ALL' || inc.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    }) ?? []
-  ).sort((a, b) => {
-    const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    return sortOrder === 'desc' ? diff : -diff;
-  });
+  // When searching, use the server-side history results (full case history);
+  // otherwise use the live queue. Status filter + sort are applied client-side to both.
+  const source = searching ? (searchResults ?? []) : (incidents ?? []);
+  const filteredIncidents = source
+    .filter((inc) => statusFilter === 'ALL' || inc.status === statusFilter)
+    .sort((a, b) => {
+      const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sortOrder === 'desc' ? diff : -diff;
+    });
 
   return (
     <>
@@ -80,7 +86,7 @@ export default function QueuePage() {
             <MagnifyingGlass size={16} />
             <input
               type="text"
-              placeholder="Search case number, complaint, patient name or phone…"
+              placeholder="Search all cases — case no., name, National ID, NHIF or phone…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -121,16 +127,16 @@ export default function QueuePage() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {(searching ? isSearching : isLoading) ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
-                    Synchronising feed…
+                    {searching ? 'Searching case history…' : 'Synchronising feed…'}
                   </td>
                 </tr>
               ) : filteredIncidents.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted)' }}>
-                    No incidents match the current filter
+                    {searching ? 'No cases found for this search' : 'No incidents match the current filter'}
                   </td>
                 </tr>
               ) : (

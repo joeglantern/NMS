@@ -152,6 +152,7 @@ export interface Incident {
   patientAge?: string;
   patientGender?: string;
   patientNhif?: string;
+  patientNationalId?: string;
   patientContact?: string;
   nextOfKin?: string;
   nextOfKinPhone?: string;

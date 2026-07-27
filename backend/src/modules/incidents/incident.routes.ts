@@ -19,6 +19,7 @@ const createIncidentSchema = z.object({
   patientAge: z.string().optional(),
   patientGender: z.string().optional(),
   patientNhif: z.string().optional(),
+  patientNationalId: z.string().optional(),
   patientContact: z.string().optional(),
   nextOfKin: z.string().optional(),
   nextOfKinPhone: z.string().optional(),
@@ -59,6 +60,8 @@ const updateIncidentSchema = z.object({
   patientName: z.string().optional(),
   patientAge: z.string().optional(),
   patientGender: z.string().optional(),
+  patientNhif: z.string().optional(),
+  patientNationalId: z.string().optional(),
   patientContact: z.string().optional(),
   nextOfKin: z.string().optional(),
   nextOfKinPhone: z.string().optional(),
@@ -133,7 +136,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   /**
    * GET /incidents
    */
-  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: string; limit?: string } }>(
+  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: string; limit?: string } }>(
     '/',
     async (request, reply) => {
       const page = request.query.page ? parseInt(request.query.page, 10) : 1;
@@ -143,6 +146,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         status: request.query.status,
         watcherId: request.query.watcherId,
         caseNumber: request.query.caseNumber,
+        search: request.query.search,
         page,
         limit,
       });

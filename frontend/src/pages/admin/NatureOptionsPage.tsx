@@ -187,7 +187,7 @@ export default function NatureOptionsPage() {
             const isExpanded = expandedNatures.has(nature);
             const detailCount = group.details.length;
             const topCreated = group.topLevel
-              ? new Date(group.topLevel.createdAt).toLocaleDateString()
+              ? new Date(group.topLevel.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Nairobi' })
               : '—';
 
             return (
@@ -260,7 +260,7 @@ export default function NatureOptionsPage() {
                   >
                     <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>↳</span>
                     <span style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 600 }}>{detail.detail}</span>
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(detail.createdAt).toLocaleDateString()}</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(detail.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Nairobi' })}</span>
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <button
                         onClick={() => deleteMutation.mutate(detail.id)}

@@ -487,7 +487,7 @@ function LiveBadge({ vehicleCount, incidentCount, lastUpdatedAt }: {
   vehicleCount: number; incidentCount: number; lastUpdatedAt: Date | null;
 }) {
   const timeStr = lastUpdatedAt
-    ? lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    ? lastUpdatedAt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
     : null;
   return (
     <div className="absolute top-3 right-3 z-[1000] flex flex-col items-end gap-1.5 pointer-events-none">

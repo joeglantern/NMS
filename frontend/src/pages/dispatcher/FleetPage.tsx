@@ -76,7 +76,7 @@ export default function FleetPage() {
       return [
         v.registrationNumber, v.imei, S_LABEL[s] ?? s,
         live?.speed ?? '—',
-        live?.timestamp ? new Date(live.timestamp).toLocaleString() : v.lastLocationAt ? new Date(v.lastLocationAt).toLocaleString() : 'N/A',
+        live?.timestamp ? new Date(live.timestamp).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' }) : v.lastLocationAt ? new Date(v.lastLocationAt).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' }) : 'N/A',
         live?.lat ?? v.lastLat ?? '', live?.lng ?? v.lastLng ?? '',
       ];
     });

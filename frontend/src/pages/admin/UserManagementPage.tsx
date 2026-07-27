@@ -584,7 +584,7 @@ export default function UserManagementPage() {
                   <tbody className="divide-y divide-surface-border/50">
                     {auditLogs.map(log => (
                       <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                        <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(log.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                         <td className="px-5 py-3">
                           <div className="text-xs font-bold text-brand-teal">{log.user?.name ?? '—'}</div>
                           <div className="text-[11px] text-slate-400">{log.user?.email ?? ''}</div>

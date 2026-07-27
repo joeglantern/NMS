@@ -11,6 +11,7 @@ import Map from '../../components/shared/Map';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useVehicleTracking } from '../../hooks/useVehicleTracking';
 import { socket } from '../../lib/socket';
+import { fmtDateTime, NBO_TZ } from '../../lib/datetime';
 
 // Straight-line (great-circle) distance in km between two lat/lng points.
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -783,6 +784,12 @@ export default function IncidentDetailPage() {
                   <p className="text-sm font-semibold text-brand-teal">{incident.patientContact}</p>
                 </div>
               )}
+              {incident.patientNationalId && (
+                <div>
+                  <label className="text-xs font-medium text-slate-text block mb-1">National ID</label>
+                  <p className="text-sm text-brand-teal">{incident.patientNationalId}</p>
+                </div>
+              )}
               {incident.nextOfKin && (
                 <div className="col-span-2">
                   <label className="text-xs font-medium text-slate-text block mb-1">Next of Kin</label>
@@ -822,7 +829,7 @@ export default function IncidentDetailPage() {
                         <span className="text-xs text-slate-300">→</span>
                         <span className="text-sm font-semibold text-brand-teal">{log.toAgency.name}</span>
                         <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">
-                          {new Date(log.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {fmtDateTime(log.createdAt)}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 italic">"{log.reason}"</p>
@@ -854,7 +861,7 @@ export default function IncidentDetailPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-brand-teal">{call.callFrom}</p>
                       <p className="text-xs text-slate-400">
-                        {new Date(call.startedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {fmtDateTime(call.startedAt)}
                         {' · '}{call.talkDuration}s talk
                       </p>
                     </div>
@@ -886,7 +893,7 @@ export default function IncidentDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-brand-teal">{call.callFrom}</p>
                         <p className="text-xs text-slate-400">
-                          {new Date(call.startedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {fmtDateTime(call.startedAt)}
                           {' · '}{call.talkDuration}s
                         </p>
                       </div>
@@ -1075,7 +1082,7 @@ export default function IncidentDetailPage() {
                 <div key={label} className={`rounded-lg p-3 border ${ts ? 'bg-brand-green/5 border-brand-green/20' : 'bg-slate-50 border-slate-100'}`}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-slate-400">{label}</p>
                   <p className={`text-xs font-semibold ${ts ? 'text-brand-teal' : 'text-slate-300'}`}>
-                    {ts ? new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    {ts ? fmtDateTime(ts) : '—'}
                   </p>
                 </div>
               ))}
@@ -1181,7 +1188,7 @@ export default function IncidentDetailPage() {
                         </p>
                         {report.note && <p className="text-xs text-slate-400 truncate mt-0.5">{report.note}</p>}
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          {(report.fileSize / 1024).toFixed(1)} KB · {new Date(report.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {(report.fileSize / 1024).toFixed(1)} KB · {fmtDateTime(report.createdAt)}
                         </p>
                       </div>
                       <button
@@ -1355,6 +1362,7 @@ export default function IncidentDetailPage() {
                           {s.timestamp && (
                             <p className="text-xs text-slate-400 mt-0.5">
                               {new Date(s.timestamp).toLocaleString('en-GB', {
+                                timeZone: NBO_TZ,
                                 day: '2-digit', month: 'short', year: 'numeric',
                                 hour: '2-digit', minute: '2-digit', second: '2-digit',
                               })}

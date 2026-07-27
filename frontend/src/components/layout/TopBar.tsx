@@ -29,7 +29,7 @@ export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBar
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setClock(now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+      setClock(now.toLocaleTimeString('en-GB', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
     };
     tick();
     const id = setInterval(tick, 1000);

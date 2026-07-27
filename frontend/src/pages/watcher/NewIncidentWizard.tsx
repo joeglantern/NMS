@@ -11,6 +11,7 @@ import Map from '../../components/shared/Map';
 import CreatableCombobox from '../../components/shared/CreatableCombobox';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePlacesAutocomplete } from '../../hooks/usePlacesAutocomplete';
+import { toNairobiInput, nairobiInputToISO } from '../../lib/datetime';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -236,6 +237,7 @@ type FormState = {
   lng: number;
   patientName: string;
   patientContact: string;
+  patientNationalId: string;
   patientAge: string;
   patientGender: string;
   nextOfKin: string;
@@ -254,7 +256,7 @@ type FormState = {
 };
 
 const defaultForm: FormState = {
-  alertAt: new Date().toISOString().slice(0, 16),
+  alertAt: toNairobiInput(),
   alertMode: 'Phone',
   notifierName: '',
   notifierPhone: '',
@@ -265,6 +267,7 @@ const defaultForm: FormState = {
   lng: 36.8219,
   patientName: '',
   patientContact: '',
+  patientNationalId: '',
   patientAge: '',
   patientGender: '',
   nextOfKin: '',
@@ -459,7 +462,7 @@ export default function NewIncidentWizard() {
   // ── Payload builder ────────────────────────────────────────────────────────
   const buildPayload = () => ({
     alertMode:             form.alertMode,
-    alertAt:               form.alertAt,
+    alertAt:               nairobiInputToISO(form.alertAt),
     originOfAlert:         form.originOfAlert || undefined,
     notifierDetails:       form.notifierName ? [{ name: form.notifierName, phone: form.notifierPhone }] : undefined,
     locationName:          form.locationName,
@@ -468,7 +471,8 @@ export default function NewIncidentWizard() {
     lat:                   form.lat,
     lng:                   form.lng,
     patientName:           form.patientName  || undefined,
-    patientContact:        form.patientContact || undefined, 
+    patientContact:        form.patientContact || undefined,
+    patientNationalId:     form.patientNationalId || undefined,
     patientAge:            form.patientAge   || undefined,
     patientGender:         form.patientGender || undefined,
     nextOfKin:             form.nextOfKin    || undefined,
@@ -677,6 +681,17 @@ export default function NewIncidentWizard() {
                     className={inputCls}
                     value={form.patientContact}
                     onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, ''); set({ patientContact: v }); }}
+                  />
+                </Field>
+                <Field>
+                  <Label>National ID</Label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="National ID number"
+                    className={inputCls}
+                    value={form.patientNationalId}
+                    onChange={e => set({ patientNationalId: e.target.value })}
                   />
                 </Field>
 

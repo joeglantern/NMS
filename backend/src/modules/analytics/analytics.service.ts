@@ -105,10 +105,14 @@ export class AnalyticsService {
       .filter(t => t.sceneArrivalAt && t.facilityArrivalAt)
       .map(t => (t.facilityArrivalAt!.getTime() - t.sceneArrivalAt!.getTime()) / 60000);
 
-    // Daily incident trend
+    // Daily incident trend — bucket by Nairobi calendar day (not UTC), so incidents
+    // in the first hours of the local day aren't counted on the previous day.
+    const nairobiDay = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit',
+    });
     const trendMap: Record<string, number> = {};
     for (const inc of trendRaw) {
-      const day = inc.createdAt.toISOString().split('T')[0];
+      const day = nairobiDay.format(inc.createdAt);
       trendMap[day] = (trendMap[day] ?? 0) + 1;
     }
     const trend = Object.entries(trendMap).map(([date, count]) => ({ date, count }));

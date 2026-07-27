@@ -130,6 +130,7 @@ export class IncidentService {
       patientAge?: string;
       patientGender?: string;
       patientNhif?: string;
+      patientNationalId?: string;
       patientContact?: string;
       nextOfKin?: string;
       nextOfKinPhone?: string;
@@ -181,6 +182,7 @@ export class IncidentService {
         patientAge: data.patientAge,
         patientGender: data.patientGender,
         patientNhif: data.patientNhif,
+        patientNationalId: data.patientNationalId,
         patientContact: data.patientContact,
         nextOfKin: data.nextOfKin,
         nextOfKinPhone: data.nextOfKinPhone,
@@ -228,7 +230,7 @@ export class IncidentService {
     return incident;
   }
 
-  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: number; limit?: number }) {
+  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: number; limit?: number }) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -237,6 +239,20 @@ export class IncidentService {
     if (filters.status) whereClause.status = filters.status;
     if (filters.watcherId) whereClause.watcherId = filters.watcherId;
     if (filters.caseNumber) whereClause.caseNumber = { contains: filters.caseNumber, mode: 'insensitive' };
+
+    // Free-text lookup across case number, patient identity and phone numbers —
+    // supports "search by National ID or phone number".
+    const search = filters.search?.trim();
+    if (search) {
+      whereClause.OR = [
+        { caseNumber: { contains: search, mode: 'insensitive' } },
+        { patientName: { contains: search, mode: 'insensitive' } },
+        { patientNationalId: { contains: search, mode: 'insensitive' } },
+        { patientNhif: { contains: search, mode: 'insensitive' } },
+        { patientContact: { contains: search, mode: 'insensitive' } },
+        { nextOfKinPhone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [incidents, total] = await Promise.all([
       this.app.prisma.incident.findMany({
@@ -314,6 +330,8 @@ export class IncidentService {
       patientName?: string;
       patientAge?: string;
       patientGender?: string;
+      patientNhif?: string;
+      patientNationalId?: string;
       patientContact?: string;
       nextOfKin?: string;
       nextOfKinPhone?: string;
@@ -347,6 +365,7 @@ export class IncidentService {
       'chiefComplaint', 'locationName', 'subCounty', 'massCasualty',
       'massCasualtyCount', 'watcherComments', 'dispatcherComments',
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
+      'patientNhif', 'patientNationalId',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
       'alertNatureDetail', 'placeOfReferral', 'targetFacilityId', 'hospitalLevelRequired',
       'healthcareWorkerName', 'healthcareWorkerContact',

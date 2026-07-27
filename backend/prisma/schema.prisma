@@ -139,12 +139,13 @@ model Incident {
   notifierDetails Json?         @map("notifier_details")
 
   // Patient information
-  patientName    String? @map("patient_name")
-  patientAge     String? @map("patient_age")
-  patientGender  String? @map("patient_gender")
-  patientNhif    String? @map("patient_nhif")
-  patientContact String? @map("patient_contact")
-  nextOfKin      String? @map("next_of_kin")
+  patientName       String? @map("patient_name")
+  patientAge        String? @map("patient_age")
+  patientGender     String? @map("patient_gender")
+  patientNhif       String? @map("patient_nhif")
+  patientNationalId String? @map("patient_national_id")
+  patientContact    String? @map("patient_contact")
+  nextOfKin         String? @map("next_of_kin")
 
   // Mass casualty event
   massCasualty      Boolean @default(false) @map("mass_casualty")

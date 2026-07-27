@@ -424,7 +424,7 @@ export default function BulkSmsPage() {
               {logs.map(l => (
                 <tr key={l.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                   <td className="px-5 py-3 whitespace-nowrap" style={{ color: 'var(--muted)' }}>
-                    {new Date(l.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(l.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="px-5 py-3 font-mono" style={{ color: 'var(--ink)' }}>{l.recipient}</td>
                   <td className="px-5 py-3"><span className="text-[10px] font-black uppercase" style={{ color: 'var(--muted)' }}>{l.category}</span></td>

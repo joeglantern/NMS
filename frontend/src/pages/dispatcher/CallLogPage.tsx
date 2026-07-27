@@ -11,7 +11,8 @@ import {
   Circle,
   X,
 } from '@phosphor-icons/react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { fmtDate, fmtTime } from '../../lib/datetime';
 import api from '../../api/client';
 import { CallLog, CallDirection, CallStatus, ActiveCall } from '../../types/api';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
@@ -214,8 +215,8 @@ export default function CallLogPage() {
                     <td className="mono strong" style={{ fontSize: 13 }}>{log.callFrom}</td>
                     <td className="mono strong" style={{ fontSize: 13 }}>{log.callTo}</td>
                     <td>
-                      <div className="strong" style={{ fontSize: 13 }}>{format(new Date(log.startedAt), 'dd MMM yyyy')}</div>
-                      <div className="muted mono" style={{ fontSize: 12 }}>{format(new Date(log.startedAt), 'HH:mm:ss')}</div>
+                      <div className="strong" style={{ fontSize: 13 }}>{fmtDate(log.startedAt)}</div>
+                      <div className="muted mono" style={{ fontSize: 12 }}>{fmtTime(log.startedAt)}</div>
                     </td>
                     <td className="mono" style={{ fontSize: 13 }}>{formatDuration(log.duration)}</td>
                     <td className="mono" style={{ fontSize: 13 }}>{formatDuration(log.talkDuration)}</td>

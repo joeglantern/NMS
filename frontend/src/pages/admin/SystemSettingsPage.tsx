@@ -343,7 +343,7 @@ export default function SystemSettingsPage() {
               </div>
               {health?.checkedAt && (
                 <p className="text-[10px] text-white/30 mt-3">
-                  Last checked {new Date(health.checkedAt).toLocaleTimeString()}
+                  Last checked {new Date(health.checkedAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                 </p>
               )}
             </div>
