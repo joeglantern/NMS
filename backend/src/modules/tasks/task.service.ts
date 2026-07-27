@@ -303,13 +303,25 @@ export class TaskService {
   async updatePatientData(
     taskId: string,
     userId: string,
-    data: { preHospitalManagement: string; dispatcherChallenges?: string }
+    data: {
+      preHospitalManagement: string;
+      dispatcherChallenges?: string;
+      handoverVitals?: Record<string, unknown>;
+    }
   ) {
     const task = await this.app.prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundError('Task');
 
     const isCrew = [task.driverId, task.emtId, task.nurseId].includes(userId);
     if (!isCrew) throw new ForbiddenError('You are not assigned to this task');
+
+    // Vital signs captured at hospital handover live on the task.
+    if (data.handoverVitals !== undefined) {
+      await this.app.prisma.task.update({
+        where: { id: taskId },
+        data: { handoverVitals: data.handoverVitals as any },
+      });
+    }
 
     // Store clinical notes on the incident
     const updatedIncident = await this.app.prisma.incident.update({
@@ -323,5 +335,80 @@ export class TaskService {
     this.app.io.to(`incident:${task.incidentId}`).emit('incident:update', updatedIncident);
 
     return updatedIncident;
+  }
+
+  /**
+   * Add a destination stop to an in-progress task (e.g. re-route KNH -> Mama Lucy).
+   * Emits a realtime event so the dispatcher console and the crew's mobile app can
+   * react and surface a push notification.
+   */
+  async addStop(
+    taskId: string,
+    user: { userId: string; role: Role },
+    data: { name: string; facilityId?: string; lat?: number; lng?: number; note?: string }
+  ) {
+    const task = await this.app.prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundError('Task');
+
+    const isCrew = [task.driverId, task.emtId, task.nurseId].includes(user.userId);
+    const isDispatch = (<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role);
+    if (!isCrew && !isDispatch) throw new ForbiddenError('You are not assigned to this task');
+
+    const count = await this.app.prisma.taskStop.count({ where: { taskId } });
+    const stop = await this.app.prisma.taskStop.create({
+      data: {
+        taskId,
+        name: data.name,
+        facilityId: data.facilityId,
+        lat: data.lat,
+        lng: data.lng,
+        note: data.note,
+        sequence: count,
+        addedById: user.userId,
+      },
+    });
+
+    this.emitStopEvent('task:stop-added', task, { taskId, stop });
+    return stop;
+  }
+
+  /**
+   * Emit a stop event to the rooms clients actually join: the dispatcher role room
+   * and each assigned crew member's personal room (the mobile app auto-joins
+   * `user:{id}` from its token). The `incident:` room is kept for parity with the
+   * rest of the codebase but is not what delivers to live clients.
+   */
+  private emitStopEvent(
+    event: 'task:stop-added' | 'task:stop-updated',
+    task: { incidentId: string; driverId: string; emtId: string | null; nurseId: string | null },
+    payload: unknown,
+  ) {
+    this.app.io.to(`role:${Role.DISPATCHER}`).emit(event, payload);
+    for (const uid of [task.driverId, task.emtId, task.nurseId]) {
+      if (uid) this.app.io.to(`user:${uid}`).emit(event, payload);
+    }
+    this.app.io.to(`incident:${task.incidentId}`).emit(event, payload);
+  }
+
+  listStops(taskId: string) {
+    return this.app.prisma.taskStop.findMany({
+      where: { taskId },
+      orderBy: { sequence: 'asc' },
+    });
+  }
+
+  async markStopArrived(taskId: string, stopId: string, user: { userId: string; role: Role }) {
+    const task = await this.app.prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundError('Task');
+    const isCrew = [task.driverId, task.emtId, task.nurseId].includes(user.userId);
+    const isDispatch = (<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role);
+    if (!isCrew && !isDispatch) throw new ForbiddenError('You are not assigned to this task');
+
+    const stop = await this.app.prisma.taskStop.update({
+      where: { id: stopId },
+      data: { arrivedAt: new Date() },
+    });
+    this.emitStopEvent('task:stop-updated', task, { taskId, stop });
+    return stop;
   }
 }

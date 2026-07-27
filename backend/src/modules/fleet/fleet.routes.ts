@@ -110,6 +110,51 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   );
 
   /**
+   * GET /fleet/partner-ambulances
+   * Active partner ambulances (Red Cross, Fire Brigade, etc.) as reference capacity
+   * for dispatchers. These have no trackers, so this is contact/vehicle info only.
+   */
+  app.get(
+    '/partner-ambulances',
+    { preValidation: [requireRole([Role.WATCHER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (_request, reply) => {
+      const data = await fleetService.listPartnerAmbulances();
+      return reply.send({ ok: true, data });
+    }
+  );
+
+  /**
+   * GET /fleet/crew-members
+   * EMT / nurse users in the driver's agency, for the crew-assignment picker.
+   */
+  app.get(
+    '/crew-members',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const crew = await fleetService.listAssignableCrew(request.user.agencyId);
+      return reply.send({ ok: true, data: crew });
+    }
+  );
+
+  /**
+   * POST /fleet/:vehicleId/crew
+   * Driver assigns/clears the EMT and/or nurse on their vehicle.
+   * Body: { emtId?: string | null; nurseId?: string | null } (omit a key to leave unchanged)
+   */
+  app.post<{ Params: { vehicleId: string }; Body: { emtId?: string | null; nurseId?: string | null } }>(
+    '/:vehicleId/crew',
+    { preValidation: [requireRole([Role.DRIVER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const vehicle = await fleetService.assignCrew(
+        request.params.vehicleId,
+        { userId: request.user.userId, role: request.user.role },
+        request.body ?? {},
+      );
+      return reply.send({ ok: true, data: vehicle });
+    }
+  );
+
+  /**
    * GET /fleet/checkins?vehicleId=&limit=
    * Recent check-in events (selfie + location) for dispatcher/admin accountability.
    */

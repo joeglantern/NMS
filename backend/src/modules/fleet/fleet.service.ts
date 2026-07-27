@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Prisma } from '../../generated/prisma/index.js';
 import { Coordinates, Role } from '../../shared/types/index.js';
-import { BadRequestError, NotFoundError } from '../../shared/errors/AppError.js';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { createWriteStream, promises as fs } from 'node:fs';
 import path from 'node:path';
 
@@ -192,6 +192,54 @@ export class FleetService {
     const field = this.crewField(role);
     return this.app.prisma.vehicle.findFirst({
       where: { [field]: userId, isActive: true },
+      include: crewInclude,
+    });
+  }
+
+  /**
+   * Driver assigns (or clears) the EMT / nurse on their vehicle. Passing an id sets
+   * that crew member; passing null clears it; omitting the key leaves it unchanged.
+   * Only the driver currently checked in to the vehicle (or an admin) may do this.
+   */
+  /** Active partner ambulances (reference info for dispatchers; not GPS-tracked). */
+  listPartnerAmbulances() {
+    return this.app.prisma.partnerAmbulance.findMany({
+      where: { isActive: true },
+      orderBy: [{ agencyId: 'asc' }, { registrationNumber: 'asc' }],
+      include: { agency: { select: { id: true, name: true } } },
+    });
+  }
+
+  /** EMT / nurse users in an agency that a driver can pick from when assigning crew. */
+  listAssignableCrew(agencyId: string) {
+    return this.app.prisma.user.findMany({
+      where: { agencyId, isActive: true, role: { in: [Role.EMT, Role.NURSE] } },
+      select: { id: true, name: true, phone: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async assignCrew(
+    vehicleId: string,
+    actor: { userId: string; role: Role },
+    crew: { emtId?: string | null; nurseId?: string | null },
+  ) {
+    const vehicle = await this.app.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) throw new NotFoundError('Vehicle');
+
+    const isAdmin = (<Role[]>[Role.ADMIN, Role.SUPER_ADMIN]).includes(actor.role);
+    const isVehicleDriver = vehicle.currentDriverId === actor.userId;
+    if (!isAdmin && !isVehicleDriver) {
+      throw new ForbiddenError('Only the checked-in driver can assign crew for this vehicle');
+    }
+
+    const data: Record<string, string | null> = {};
+    if (crew.emtId !== undefined) data.currentEmtId = crew.emtId;
+    if (crew.nurseId !== undefined) data.currentNurseId = crew.nurseId;
+
+    return this.app.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data,
       include: crewInclude,
     });
   }

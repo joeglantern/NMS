@@ -52,6 +52,18 @@ const updateAgencySchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+const partnerAmbulanceSchema = z.object({
+  agencyId: z.string().uuid(),
+  registrationNumber: z.string().min(2, 'Registration number required'),
+  vehicleType: z.string().optional(),
+  contactName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  baseLocation: z.string().optional(),
+  capacity: z.string().optional(),
+  notes: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
 const createFacilitySchema = z.object({
   name: z.string().min(2),
   type: z.string().min(2),
@@ -212,6 +224,42 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   app.delete<{ Params: { id: string } }>('/nature-options/:id', async (request, reply) => {
     await app.prisma.incidentNatureOption.delete({ where: { id: request.params.id } });
+    return reply.send({ ok: true });
+  });
+
+  // ── Partner Ambulances (reference info only — no GPS trackers) ────────────────
+
+  app.get('/partner-ambulances', async (_request, reply) => {
+    const data = await app.prisma.partnerAmbulance.findMany({
+      orderBy: [{ isActive: 'desc' }, { registrationNumber: 'asc' }],
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.send({ ok: true, data });
+  });
+
+  app.post<{ Body: unknown }>('/partner-ambulances', async (request, reply) => {
+    const parsed = partnerAmbulanceSchema.safeParse(request.body);
+    if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+    const data = await app.prisma.partnerAmbulance.create({
+      data: parsed.data,
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.status(201).send({ ok: true, data });
+  });
+
+  app.patch<{ Params: { id: string }; Body: unknown }>('/partner-ambulances/:id', async (request, reply) => {
+    const parsed = partnerAmbulanceSchema.partial().safeParse(request.body);
+    if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+    const data = await app.prisma.partnerAmbulance.update({
+      where: { id: request.params.id },
+      data: parsed.data,
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.send({ ok: true, data });
+  });
+
+  app.delete<{ Params: { id: string } }>('/partner-ambulances/:id', async (request, reply) => {
+    await app.prisma.partnerAmbulance.delete({ where: { id: request.params.id } });
     return reply.send({ ok: true });
   });
 

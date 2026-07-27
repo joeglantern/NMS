@@ -203,6 +203,7 @@ export interface Task {
   completedAt?: string;
   cancelledAt?: string;
   cancelReason?: string;
+  handoverVitals?: Record<string, string> | null;
   incidentId: string;
   vehicleId: string;
   vehicle?: Vehicle;
@@ -212,6 +213,33 @@ export interface Task {
   driver?: Pick<User, 'name' | 'phone'> | null;
   emt?: Pick<User, 'name' | 'phone'> | null;
   nurse?: Pick<User, 'name' | 'phone'> | null;
+}
+
+export interface TaskStop {
+  id: string;
+  taskId: string;
+  name: string;
+  facilityId?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  note?: string | null;
+  sequence: number;
+  arrivedAt?: string | null;
+  createdAt: string;
+}
+
+export interface PartnerAmbulance {
+  id: string;
+  agencyId: string;
+  agency?: { id: string; name: string };
+  registrationNumber: string;
+  vehicleType?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  baseLocation?: string | null;
+  capacity?: string | null;
+  notes?: string | null;
+  isActive: boolean;
 }
 
 export interface PatientCareReport {

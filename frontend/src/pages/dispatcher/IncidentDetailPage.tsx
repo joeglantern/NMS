@@ -25,6 +25,18 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+// Friendly labels for the crew's hospital-handover vitals (stored on Task.handoverVitals).
+const HANDOVER_VITAL_LABELS: Record<string, string> = {
+  temperature: 'Temperature',
+  pulseRate: 'Pulse',
+  respirationRate: 'Respiration',
+  bp: 'Blood Pressure',
+  spo2: 'SPO2',
+  gcs: 'GCS',
+  fh: 'Foetal Heart',
+  rbs: 'RBS',
+};
+
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -389,9 +401,19 @@ export default function IncidentDetailPage() {
     ? { lat: incident.lat, lng: incident.lng }
     : null;
 
+  // Prioritise facilities in the incident's administrative region (sub-county),
+  // then by straight-line distance to the scene (requested change #3).
+  const incidentRegion = incident?.subCounty?.trim().toLowerCase();
   const facilitiesByDistance = [...facilities]
-    .map(f => ({ facility: f, km: scenePoint ? haversineKm(scenePoint, { lat: f.lat, lng: f.lng }) : null }))
-    .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
+    .map(f => ({
+      facility: f,
+      km: scenePoint ? haversineKm(scenePoint, { lat: f.lat, lng: f.lng }) : null,
+      inRegion: !!incidentRegion && f.subCounty?.trim().toLowerCase() === incidentRegion,
+    }))
+    .sort((a, b) => {
+      if (a.inRegion !== b.inRegion) return a.inRegion ? -1 : 1;
+      return (a.km ?? Infinity) - (b.km ?? Infinity);
+    });
 
   const selectedFacilityDistanceKm = scenePoint && incident?.targetFacility
     ? haversineKm(scenePoint, { lat: incident.targetFacility.lat, lng: incident.targetFacility.lng })
@@ -682,9 +704,9 @@ export default function IncidentDetailPage() {
                       className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm text-brand-teal focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
                     >
                       <option value="">— No referral facility —</option>
-                      {facilitiesByDistance.map(({ facility, km }) => (
+                      {facilitiesByDistance.map(({ facility, km, inRegion }) => (
                         <option key={facility.id} value={facility.id}>
-                          {facility.name} · {facility.type}{km != null ? ` · ~${km.toFixed(1)} km` : ''}
+                          {inRegion ? '★ ' : ''}{facility.name} · {facility.type}{km != null ? ` · ~${km.toFixed(1)} km` : ''}{inRegion ? ` · ${facility.subCounty}` : ''}
                         </option>
                       ))}
                     </select>
@@ -1087,6 +1109,26 @@ export default function IncidentDetailPage() {
                 </div>
               ))}
             </div>
+
+            {/* Hospital Handover Vitals — captured by crew at handover (#7) */}
+            {activeTask.handoverVitals && Object.values(activeTask.handoverVitals).some(Boolean) && (
+              <div className="border border-surface-border rounded-xl overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-surface-border flex items-center gap-2">
+                  <FirstAid size={14} weight="bold" className="text-brand-teal" />
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Vitals at Hospital Handover</p>
+                </div>
+                <div className="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {Object.entries(activeTask.handoverVitals)
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => (
+                      <div key={k}>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{HANDOVER_VITAL_LABELS[k] ?? k}</p>
+                        <p className="text-sm font-semibold text-brand-teal">{String(v)}</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Clinical Notes — dispatcher-editable */}
             <div className="border border-surface-border rounded-xl overflow-hidden">
