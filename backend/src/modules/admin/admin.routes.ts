@@ -202,8 +202,10 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { nature, detail: detail ?? null },
     });
     if (existing) return reply.send({ ok: true, data: existing });
+    // Append after existing options so admin-added entries don't jump to the top.
+    const max = await app.prisma.incidentNatureOption.aggregate({ _max: { sortOrder: true } });
     const option = await app.prisma.incidentNatureOption.create({
-      data: { nature, detail: detail ?? null },
+      data: { nature, detail: detail ?? null, sortOrder: (max._max.sortOrder ?? -1) + 1 },
     });
     return reply.status(201).send({ ok: true, data: option });
   });

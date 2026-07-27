@@ -422,8 +422,9 @@ model ForwardingLog {
 
 model IncidentNatureOption {
   id        String   @id @default(uuid())
-  nature    String   // e.g. "Trauma"
-  detail    String?  // e.g. "Road Traffic Accident" — null = top-level nature
+  nature    String   // e.g. "Maternity (maternal & neonatal disorders)"
+  detail    String?  // e.g. "Miscarriage" — null = top-level nature
+  sortOrder Int      @default(0) @map("sort_order") // preserves the intended display order
   createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([nature, detail])

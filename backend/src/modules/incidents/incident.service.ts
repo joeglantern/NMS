@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { IncidentStatus, Role, TaskStatus, VehicleStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { SmsService } from '../sms/sms.service.js';
+import { NATURE_TAXONOMY } from './nature-taxonomy.js';
 
 export class IncidentService {
   private sms: SmsService;
@@ -694,43 +695,48 @@ export class IncidentService {
 
   // ── Nature options (user-extensible taxonomy) ─────────────────────────────
 
-  private readonly SEED_NATURES: Array<{ nature: string; details: string[] }> = [
-    { nature: 'Trauma',      details: ['Road Traffic Accident', 'Fall', 'Assault/Violence', 'Industrial Accident', 'Sports Injury', 'Other'] },
-    { nature: 'Medical',     details: ['Cardiac Arrest', 'Stroke', 'Seizure', 'Respiratory Distress', 'Diabetic Emergency', 'Other'] },
-    { nature: 'Obstetric',   details: ['Labour', 'Post-partum Haemorrhage', 'Eclampsia', 'Miscarriage', 'Other'] },
-    { nature: 'Pediatric',   details: ['Febrile Convulsion', 'Neonatal Emergency', 'Respiratory Distress', 'Trauma', 'Other'] },
-    { nature: 'Psychiatric', details: ['Attempted Suicide', 'Acute Psychosis', 'Aggression', 'Other'] },
-    { nature: 'Burns',       details: ['Chemical', 'Electrical', 'Thermal', 'Other'] },
-    { nature: 'Poisoning',   details: ['Drug Overdose', 'Chemical Ingestion', 'Snake Bite', 'Other'] },
-    { nature: 'Other',       details: ['Other'] },
-  ];
+  // The nature → specific-nature taxonomy lives in ./nature-taxonomy.ts so the reseed
+  // script and the auto-seed below share one source of truth.
+  private readonly SEED_NATURES = NATURE_TAXONOMY;
+
+  /** Flatten the taxonomy into ordered rows, assigning an incrementing sortOrder. */
+  private buildSeedRows(): Array<{ nature: string; detail: string | null; sortOrder: number }> {
+    const rows: Array<{ nature: string; detail: string | null; sortOrder: number }> = [];
+    let order = 0;
+    for (const { nature, details } of this.SEED_NATURES) {
+      rows.push({ nature, detail: null, sortOrder: order++ });
+      for (const detail of details) rows.push({ nature, detail, sortOrder: order++ });
+    }
+    return rows;
+  }
 
   async getNatureOptions(): Promise<Array<{ nature: string; details: string[] }>> {
     const rows = await this.app.prisma.incidentNatureOption.findMany({
-      orderBy: [{ nature: 'asc' }, { detail: 'asc' }],
+      orderBy: [{ sortOrder: 'asc' }, { nature: 'asc' }, { detail: 'asc' }],
     });
 
     // Auto-seed defaults on first use
     if (rows.length === 0) {
-      const seeds = this.SEED_NATURES.flatMap(({ nature, details }) => [
-        { nature, detail: null },
-        ...details.map(detail => ({ nature, detail })),
-      ]);
-      await this.app.prisma.incidentNatureOption.createMany({ data: seeds, skipDuplicates: true });
-      return this.SEED_NATURES;
+      await this.app.prisma.incidentNatureOption.createMany({
+        data: this.buildSeedRows(),
+        skipDuplicates: true,
+      });
+      return this.SEED_NATURES.map(({ nature, details }) => ({ nature, details }));
     }
 
-    // Group into { nature, details[] }
+    // Group into { nature, details[] } preserving the sortOrder-driven row order.
     const map = new Map<string, string[]>();
     for (const row of rows) {
-      if (!row.detail) {
-        if (!map.has(row.nature)) map.set(row.nature, []);
-      } else {
-        if (!map.has(row.nature)) map.set(row.nature, []);
-        map.get(row.nature)!.push(row.detail);
-      }
+      if (!map.has(row.nature)) map.set(row.nature, []);
+      if (row.detail) map.get(row.nature)!.push(row.detail);
     }
     return Array.from(map.entries()).map(([nature, details]) => ({ nature, details }));
+  }
+
+  /** Next sortOrder for a freshly added option — appends after everything existing. */
+  private async nextNatureSortOrder(): Promise<number> {
+    const max = await this.app.prisma.incidentNatureOption.aggregate({ _max: { sortOrder: true } });
+    return (max._max.sortOrder ?? -1) + 1;
   }
 
   async createNatureOption(nature: string, detail?: string): Promise<void> {
@@ -740,14 +746,18 @@ export class IncidentService {
       where: { nature, detail: null },
     });
     if (!topExists) {
-      await this.app.prisma.incidentNatureOption.create({ data: { nature, detail: null } });
+      await this.app.prisma.incidentNatureOption.create({
+        data: { nature, detail: null, sortOrder: await this.nextNatureSortOrder() },
+      });
     }
     if (detail) {
       const detailExists = await this.app.prisma.incidentNatureOption.findFirst({
         where: { nature, detail },
       });
       if (!detailExists) {
-        await this.app.prisma.incidentNatureOption.create({ data: { nature, detail } });
+        await this.app.prisma.incidentNatureOption.create({
+          data: { nature, detail, sortOrder: await this.nextNatureSortOrder() },
+        });
       }
     }
   }
