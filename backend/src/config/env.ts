@@ -97,6 +97,33 @@ const schema = {
       type: 'string',
       default: 'EOC',
     },
+    // WhatsApp Cloud API (Meta / graph.facebook.com). Blank = WhatsApp disabled.
+    WHATSAPP_BASE_URL: {
+      type: 'string',
+      default: 'https://graph.facebook.com',
+    },
+    WHATSAPP_API_VERSION: {
+      type: 'string',
+      default: 'v21.0',
+    },
+    WHATSAPP_PHONE_NUMBER_ID: {
+      type: 'string',
+      default: '',
+    },
+    WHATSAPP_TOKEN: {
+      type: 'string',
+      default: '',
+    },
+    // Name of the pre-approved Cloud API template used for alert notifications.
+    // The template must take the message body as a single {{1}} body parameter.
+    WHATSAPP_TEMPLATE_NAME: {
+      type: 'string',
+      default: '',
+    },
+    WHATSAPP_TEMPLATE_LANG: {
+      type: 'string',
+      default: 'en',
+    },
   },
 };
 
@@ -129,6 +156,12 @@ declare module 'fastify' {
       ADVANTA_API_KEY: string;
       ADVANTA_PARTNER_ID: string;
       ADVANTA_SENDER_ID: string;
+      WHATSAPP_BASE_URL: string;
+      WHATSAPP_API_VERSION: string;
+      WHATSAPP_PHONE_NUMBER_ID: string;
+      WHATSAPP_TOKEN: string;
+      WHATSAPP_TEMPLATE_NAME: string;
+      WHATSAPP_TEMPLATE_LANG: string;
     };
   }
 }

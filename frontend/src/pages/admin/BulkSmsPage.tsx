@@ -415,6 +415,7 @@ export default function BulkSmsPage() {
               <tr style={{ color: 'var(--muted)' }} className="text-left text-[10px] font-black uppercase tracking-widest">
                 <th className="px-5 py-3">When</th>
                 <th className="px-5 py-3">Recipient</th>
+                <th className="px-5 py-3">Channel</th>
                 <th className="px-5 py-3">Category</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Message</th>
@@ -427,6 +428,7 @@ export default function BulkSmsPage() {
                     {new Date(l.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="px-5 py-3 font-mono" style={{ color: 'var(--ink)' }}>{l.recipient}</td>
+                  <td className="px-5 py-3"><span className="text-[10px] font-black uppercase" style={{ color: (l.channel ?? 'SMS') === 'WHATSAPP' ? 'var(--brand-green)' : 'var(--muted)' }}>{l.channel ?? 'SMS'}</span></td>
                   <td className="px-5 py-3"><span className="text-[10px] font-black uppercase" style={{ color: 'var(--muted)' }}>{l.category}</span></td>
                   <td className="px-5 py-3">
                     {l.status === 'SENT'
@@ -437,7 +439,7 @@ export default function BulkSmsPage() {
                 </tr>
               ))}
               {logs.length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>No messages sent yet.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>No messages sent yet.</td></tr>
               )}
             </tbody>
           </table>

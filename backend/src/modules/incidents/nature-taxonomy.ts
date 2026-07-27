@@ -36,8 +36,12 @@ export const NATURE_TAXONOMY: Array<{ nature: string; details: string[] }> = [
       'Uterine fibroids', 'Urinary incontinence', 'Polycystic ovarian syndrome',
     ],
   },
+  // Per requested change #1, the legacy "Illnesses (medical & surgical)" category is
+  // split into Medical and Surgical. This list is overwhelmingly medical; only clearly
+  // operative conditions are placed under Surgical. NOTE: this classification should be
+  // reviewed by a clinician — it is fully editable via the admin Nature Options page.
   {
-    nature: 'Illnesses (medical & surgical)',
+    nature: 'Illnesses (Medical)',
     details: [
       'Acute respiratory disease', 'Malaria', 'HIV/AIDS', 'Urinary tract infection',
       'Sexually transmitted diseases', 'Acute cardiovascular diseases', 'Neoplasms (cancer)',
@@ -46,12 +50,18 @@ export const NATURE_TAXONOMY: Array<{ nature: string; details: string[] }> = [
       'Renal disorders', 'Anemia', 'Diabetes', 'Hypertension', 'Tuberculosis (TB)',
       'Enteric infections (watery diarrhea)', 'Physiatric conditions', 'Cellutis', 'Hepatitis A',
       'Measles suspect', 'Measles confirmed case', 'Polio case', 'Peptic ulcers diseases',
-      'Gastritis', 'Hypovolemic shock', 'Malnutrition', 'Acute febrile illness', 'Meningitis',
+      'Gastritis', 'Malnutrition', 'Acute febrile illness', 'Meningitis',
       'Stroke', 'Asthma', 'Illness', 'convulsions', 'unconsciousness{ non-responsive]',
       'Adverse event following immunization {AEFI)', 'Anthrax', 'Dengue fever',
       'Guinea worm disease', 'Neonatal tetanus', 'plague', 'MPOX', 'SARS', 'Yellow fever',
-      'whooping cough', 'Rabies', 'small pox', 'TB', 'ASCITES', 'pneumonia', 'fracture',
-      'bleeding disorders', 'ACUTE ABDOMEN',
+      'whooping cough', 'Rabies', 'small pox', 'TB', 'ASCITES', 'pneumonia',
+      'bleeding disorders',
+    ],
+  },
+  {
+    nature: 'Illnesses (Surgical)',
+    details: [
+      'ACUTE ABDOMEN', 'fracture', 'Hypovolemic shock',
     ],
   },
   {

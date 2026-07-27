@@ -229,6 +229,7 @@ export interface SmsMessage {
   id: string;
   recipient: string;
   message: string;
+  channel?: string; // SMS | WHATSAPP
   category: string;
   status: string;
   providerMessageId?: string | null;

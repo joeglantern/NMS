@@ -494,6 +494,7 @@ model SmsMessage {
   id                String   @id @default(uuid())
   recipient         String                            // normalized MSISDN, e.g. 2547XXXXXXXX
   message           String   @db.Text
+  channel           String   @default("SMS")           // SMS | WHATSAPP
   category          String   @default("MANUAL")       // MANUAL | AUTO_PARTNER | SURVEILLANCE
   status            String   @default("SENT")          // SENT | FAILED
   providerMessageId String?  @map("provider_message_id")
