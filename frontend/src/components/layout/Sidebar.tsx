@@ -16,6 +16,8 @@ import {
   ShieldWarning,
   Handshake,
   ChatText,
+  Timer,
+  Truck,
 } from '@phosphor-icons/react';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 import { Link, useLocation } from 'react-router-dom';
@@ -29,9 +31,11 @@ const navItems = [
   { label: 'Dashboard', path: '/dashboard', Icon: SquaresFour, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Incident Feed', path: '/queue', Icon: ListBullets, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Fleet Management', path: '/fleet', Icon: MapTrifold, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
+  { label: 'Standby', path: '/fleet/standby', Icon: Timer, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Call Logs', path: '/call-logs', Icon: Phone, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Personnel', path: '/admin/users', Icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Partners', path: '/admin/partners', Icon: Handshake, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { label: 'Partner Ambulances', path: '/admin/partner-ambulances', Icon: Truck, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Bulk SMS', path: '/admin/sms', Icon: ChatText, roles: ['SUPER_ADMIN', 'ADMIN'] },

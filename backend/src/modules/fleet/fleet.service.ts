@@ -201,6 +201,58 @@ export class FleetService {
    * that crew member; passing null clears it; omitting the key leaves it unchanged.
    * Only the driver currently checked in to the vehicle (or an admin) may do this.
    */
+  // ── Standby deployments (fleet standby reporting, #11) ───────────────────────
+
+  /** Put a vehicle on standby for an event/location. */
+  startStandby(
+    userId: string,
+    data: { vehicleId: string; title: string; location?: string; lat?: number; lng?: number; notes?: string; startedAt?: string },
+  ) {
+    return this.app.prisma.standbyDeployment.create({
+      data: {
+        vehicleId: data.vehicleId,
+        title: data.title,
+        location: data.location,
+        lat: data.lat,
+        lng: data.lng,
+        notes: data.notes,
+        startedAt: data.startedAt ? new Date(data.startedAt) : undefined,
+        createdById: userId,
+      },
+      include: { vehicle: { select: { id: true, registrationNumber: true } } },
+    });
+  }
+
+  /** End an active standby (sets endedAt to now, or a provided time). */
+  async endStandby(id: string, endedAt?: string) {
+    const row = await this.app.prisma.standbyDeployment.findUnique({ where: { id } });
+    if (!row) throw new NotFoundError('Standby deployment');
+    return this.app.prisma.standbyDeployment.update({
+      where: { id },
+      data: { endedAt: endedAt ? new Date(endedAt) : new Date() },
+      include: { vehicle: { select: { id: true, registrationNumber: true } } },
+    });
+  }
+
+  /** Standby report: filter by active state, vehicle, and date range (by startedAt). */
+  listStandby(filter: { active?: boolean; vehicleId?: string; from?: string; to?: string }) {
+    const where: Record<string, unknown> = {};
+    if (filter.active === true) where.endedAt = null;
+    if (filter.active === false) where.endedAt = { not: null };
+    if (filter.vehicleId) where.vehicleId = filter.vehicleId;
+    if (filter.from || filter.to) {
+      where.startedAt = {
+        ...(filter.from ? { gte: new Date(filter.from) } : {}),
+        ...(filter.to ? { lte: new Date(filter.to) } : {}),
+      };
+    }
+    return this.app.prisma.standbyDeployment.findMany({
+      where,
+      orderBy: { startedAt: 'desc' },
+      include: { vehicle: { select: { id: true, registrationNumber: true } } },
+    });
+  }
+
   /** Active partner ambulances (reference info for dispatchers; not GPS-tracked). */
   listPartnerAmbulances() {
     return this.app.prisma.partnerAmbulance.findMany({

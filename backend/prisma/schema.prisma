@@ -293,6 +293,33 @@ model TaskStop {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// StandbyDeployment — an ambulance placed on standby for an event or at a location
+// (e.g. a match, a rally, a hospital). Used for fleet standby reporting (#11).
+// A row is "active" while endedAt is null.
+// ─────────────────────────────────────────────────────────────────────────────
+model StandbyDeployment {
+  id        String   @id @default(uuid())
+  vehicleId String   @map("vehicle_id")
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+
+  title     String                              // event / reason, e.g. "Derby match standby"
+  location  String?                             // where the vehicle is stationed
+  lat       Float?
+  lng       Float?
+  notes     String?  @db.Text
+
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")           // null = still on standby
+
+  createdById String? @map("created_by_id")      // soft link to the user who logged it
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([vehicleId])
+  @@index([startedAt])
+  @@map("standby_deployments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PartnerAmbulance — partner-owned ambulances (Red Cross, Fire Brigade, etc.).
 // These have no GPS trackers, so we store reference vehicle information only; they
 // are shown to dispatchers as available partner capacity, not live-tracked.
@@ -364,8 +391,9 @@ model Vehicle {
   currentNurseId  String? @map("current_nurse_id")
   currentNurse    User?   @relation("VehicleCurrentNurse", fields: [currentNurseId], references: [id])
 
-  tasks    Task[]
-  checkIns CheckIn[]
+  tasks     Task[]
+  checkIns  CheckIn[]
+  standbys  StandbyDeployment[]
 
   @@map("vehicles")
 }

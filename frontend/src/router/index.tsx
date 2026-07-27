@@ -22,6 +22,8 @@ const FacilitiesPage = lazy(() => import('../pages/admin/FacilitiesPage'));
 const PartnersPage = lazy(() => import('../pages/admin/PartnersPage'));
 const BulkSmsPage = lazy(() => import('../pages/admin/BulkSmsPage'));
 const NatureOptionsPage = lazy(() => import('../pages/admin/NatureOptionsPage'));
+const StandbyPage = lazy(() => import('../pages/dispatcher/StandbyPage'));
+const PartnerAmbulancesPage = lazy(() => import('../pages/admin/PartnerAmbulancesPage'));
 const GbvDashboardPage = lazy(() => import('../pages/gbv/GbvDashboardPage'));
 const GbvCaseDetailPage = lazy(() => import('../pages/gbv/GbvCaseDetailPage'));
 
@@ -131,6 +133,22 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
             <FleetPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'fleet/standby',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+            <StandbyPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'admin/partner-ambulances',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <PartnerAmbulancesPage />
           </RoleGuard>
         ),
       },

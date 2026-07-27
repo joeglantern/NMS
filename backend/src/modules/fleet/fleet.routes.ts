@@ -109,6 +109,46 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
   );
 
+  // ── Standby deployments (fleet standby reporting) ────────────────────────────
+
+  /** GET /fleet/standby?active=true|false&vehicleId=&from=&to= — standby report. */
+  app.get<{ Querystring: { active?: string; vehicleId?: string; from?: string; to?: string } }>(
+    '/standby',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const active = request.query.active === 'true' ? true : request.query.active === 'false' ? false : undefined;
+      const data = await fleetService.listStandby({
+        active,
+        vehicleId: request.query.vehicleId,
+        from: request.query.from,
+        to: request.query.to,
+      });
+      return reply.send({ ok: true, data });
+    }
+  );
+
+  /** POST /fleet/standby — place a vehicle on standby. */
+  app.post<{ Body: { vehicleId: string; title: string; location?: string; lat?: number; lng?: number; notes?: string; startedAt?: string } }>(
+    '/standby',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      if (!request.body?.vehicleId) throw new BadRequestError('vehicleId is required');
+      if (!request.body?.title?.trim()) throw new BadRequestError('A standby title/reason is required');
+      const data = await fleetService.startStandby(request.user.userId, request.body);
+      return reply.status(201).send({ ok: true, data });
+    }
+  );
+
+  /** PATCH /fleet/standby/:id/end — end an active standby. */
+  app.patch<{ Params: { id: string }; Body: { endedAt?: string } }>(
+    '/standby/:id/end',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const data = await fleetService.endStandby(request.params.id, request.body?.endedAt);
+      return reply.send({ ok: true, data });
+    }
+  );
+
   /**
    * GET /fleet/partner-ambulances
    * Active partner ambulances (Red Cross, Fire Brigade, etc.) as reference capacity
