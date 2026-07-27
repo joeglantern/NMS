@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import NotificationDrawer from '../shared/NotificationDrawer';
+import DevRoleSwitcher from '../dev/DevRoleSwitcher';
 import { useNavigate, Link } from 'react-router-dom';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 
@@ -94,6 +95,9 @@ export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBar
             {activeCalls.length} active call{activeCalls.length > 1 ? 's' : ''}
           </Link>
         )}
+
+        {/* Role switcher (UI preview) */}
+        <DevRoleSwitcher />
 
         {/* Theme toggle */}
         <button className="icon-btn" onClick={onThemeToggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
