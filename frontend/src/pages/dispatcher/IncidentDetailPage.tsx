@@ -67,6 +67,9 @@ export default function IncidentDetailPage() {
   const [editedPreHospital, setEditedPreHospital] = useState('');
   const [editedChallenges, setEditedChallenges] = useState('');
   const [editedOtherNotes, setEditedOtherNotes] = useState('');
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignReason, setReassignReason] = useState('');
+  const [reassignVehicleId, setReassignVehicleId] = useState('');
 
   // Fetch Incident
   const { data: incident, isLoading } = useQuery({
@@ -258,6 +261,31 @@ export default function IncidentDetailPage() {
     },
     onError: (err: any) => {
       addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not assign to partner.' });
+    },
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: (taskId: string) =>
+      api.post(`/tasks/${taskId}/reassign`, {
+        reason: reassignReason,
+        newVehicleId: reassignVehicleId || undefined,
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      setShowReassignModal(false);
+      setReassignReason('');
+      setReassignVehicleId('');
+      const reassigned = !!res?.data?.data?.newTask;
+      addNotification({
+        type: 'success',
+        title: reassigned ? 'Reassigned' : 'Task terminated',
+        message: reassigned
+          ? 'Original crew checked out; a new crew has been dispatched.'
+          : 'Original crew checked out. Case returned to dispatch handling.',
+      });
+    },
+    onError: (err: any) => {
+      addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not reassign the task.' });
     },
   });
 
@@ -1068,6 +1096,15 @@ export default function IncidentDetailPage() {
                 Unit: {activeTask.vehicle.registrationNumber}
               </span>
             )}
+            {activeTask.status !== 'COMPLETED' && activeTask.status !== 'CANCELLED' && (
+              <button
+                onClick={() => { setReassignReason(''); setReassignVehicleId(''); setShowReassignModal(true); }}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 transition-all ${activeTask.vehicle ? 'ml-2' : 'ml-auto'}`}
+                title="Hand over or terminate this task and optionally reassign to another crew"
+              >
+                Reassign / Terminate
+              </button>
+            )}
           </div>
 
           <div className="p-6 flex flex-col gap-6">
@@ -1490,6 +1527,67 @@ export default function IncidentDetailPage() {
       </div>
 
       {/* Resolve Modal */}
+      {/* Reassign / Terminate Task Modal (#10) */}
+      {showReassignModal && activeTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl border border-surface-border w-full max-w-md mx-4 p-6 flex flex-col gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-brand-teal">Reassign / Terminate Task</h3>
+              <p className="text-sm text-slate-text mt-1">
+                Current unit <span className="font-semibold text-brand-teal">{activeTask.vehicle?.registrationNumber ?? '—'}</span> will be checked out.
+                Pick a replacement to dispatch a new crew, or leave it blank to just terminate and return the case to dispatch handling.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-1.5">Reason (required)</label>
+              <textarea
+                autoFocus
+                className="w-full border border-surface-border rounded-lg p-3 text-sm h-24 resize-none outline-none focus:ring-2 focus:ring-brand-green transition-all"
+                placeholder="e.g. Vehicle broke down at scene, reassigning to nearest available unit..."
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">Minimum 5 characters required.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-1.5">Replacement unit (optional)</label>
+              <select
+                className="w-full border border-surface-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-green transition-all"
+                value={reassignVehicleId}
+                onChange={(e) => setReassignVehicleId(e.target.value)}
+              >
+                <option value="">— Terminate only (no replacement) —</option>
+                {(nearestVehicles || [])
+                  .filter(v => v.id !== activeTask.vehicleId && v.currentDriver)
+                  .map(v => {
+                    const km = (v as { distanceKm?: number }).distanceKm;
+                    return (
+                      <option key={v.id} value={v.id}>
+                        {v.registrationNumber}{km != null ? ` · ~${km.toFixed(1)} km` : ''}
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowReassignModal(false); setReassignReason(''); setReassignVehicleId(''); }}
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => reassignMutation.mutate(activeTask.id)}
+                disabled={reassignReason.trim().length < 5 || reassignMutation.isPending}
+                className="px-5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {reassignMutation.isPending ? 'Working...' : reassignVehicleId ? 'Reassign Crew' : 'Terminate Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showResolveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl border border-surface-border w-full max-w-md mx-4 p-6 flex flex-col gap-4">

@@ -39,7 +39,7 @@ const navItems = [
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Bulk SMS', path: '/admin/sms', Icon: ChatText, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { label: 'GBV Register', path: '/gbv/dashboard', Icon: ShieldWarning, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
+  { label: 'GBV Register', path: '/gbv/dashboard', Icon: ShieldWarning, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'PARTNER'] },
   { label: 'Analytics', path: '/admin/analytics', Icon: ChartLineUp, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER', 'PARTNER'] },
   { label: 'System Settings', path: '/admin/settings', Icon: Gear, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'My Alerts', path: '/watcher', Icon: ClipboardText, roles: ['WATCHER'] },

@@ -157,6 +157,97 @@ export class TaskService {
   }
 
   /**
+   * Handover / case termination with reassignment (#10). Cancels the current task
+   * with a required reason (which checks out the original driver by releasing their
+   * vehicle), and, when a replacement vehicle is given, dispatches a new task to it.
+   */
+  async reassignTask(
+    taskId: string,
+    user: { userId: string; role: Role },
+    data: { reason: string; newVehicleId?: string },
+  ) {
+    if (!(<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role)) {
+      throw new ForbiddenError('Only dispatchers and admins can reassign tasks');
+    }
+    const reason = data.reason?.trim();
+    if (!reason || reason.length < 5) {
+      throw new BadRequestError('A valid reason (at least 5 characters) is required to reassign');
+    }
+
+    const task = await this.app.prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundError('Task not found');
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
+      throw new BadRequestError('This task is already closed');
+    }
+
+    // Validate the replacement vehicle (if reassigning to a new crew).
+    let newVehicle = null as null | Awaited<ReturnType<typeof this.app.prisma.vehicle.findUnique>>;
+    if (data.newVehicleId) {
+      if (data.newVehicleId === task.vehicleId) {
+        throw new BadRequestError('Choose a different vehicle to reassign to');
+      }
+      newVehicle = await this.app.prisma.vehicle.findUnique({ where: { id: data.newVehicleId } });
+      if (!newVehicle) throw new NotFoundError('Replacement vehicle not found');
+      if (!newVehicle.isActive) throw new BadRequestError('Replacement vehicle is not active');
+      if (!newVehicle.currentDriverId) throw new BadRequestError('No driver is checked in to the replacement vehicle');
+    }
+
+    const now = new Date();
+
+    // Close the original task and release its vehicle (checks out the original driver).
+    const cancelled = await this.app.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.CANCELLED, cancelledAt: now, cancelReason: reason },
+    });
+    await this.app.prisma.vehicle.update({
+      where: { id: task.vehicleId },
+      data: { status: VehicleStatus.READY },
+    });
+
+    // Tell the original crew their task is cancelled so their app clears it.
+    let oldRoom = this.app.io.to(`user:${task.driverId}`).to(`role:${Role.DISPATCHER}`);
+    if (task.emtId) oldRoom = oldRoom.to(`user:${task.emtId}`);
+    if (task.nurseId) oldRoom = oldRoom.to(`user:${task.nurseId}`);
+    oldRoom.emit('task:updated', cancelled);
+
+    // If no replacement was given, send the incident back to dispatch handling.
+    if (!newVehicle) {
+      await this.app.prisma.incident.update({
+        where: { id: task.incidentId },
+        data: { status: IncidentStatus.DISPATCH_HANDLING },
+      });
+      return { cancelled, newTask: null };
+    }
+
+    // Dispatch a fresh task to the replacement vehicle's crew.
+    const newTask = await this.app.prisma.task.create({
+      data: {
+        status: TaskStatus.PENDING,
+        incidentId: task.incidentId,
+        vehicleId: newVehicle.id,
+        driverId: newVehicle.currentDriverId!,
+        emtId: newVehicle.currentEmtId ?? undefined,
+        nurseId: newVehicle.currentNurseId ?? undefined,
+      },
+    });
+    await this.app.prisma.vehicle.update({
+      where: { id: newVehicle.id },
+      data: { status: VehicleStatus.BUSY },
+    });
+    await this.app.prisma.incident.update({
+      where: { id: task.incidentId },
+      data: { status: IncidentStatus.DISPATCHED },
+    });
+
+    let newRoom = this.app.io.to(`user:${newVehicle.currentDriverId}`).to(`role:${Role.DISPATCHER}`);
+    if (newVehicle.currentEmtId) newRoom = newRoom.to(`user:${newVehicle.currentEmtId}`);
+    if (newVehicle.currentNurseId) newRoom = newRoom.to(`user:${newVehicle.currentNurseId}`);
+    newRoom.emit('task:assigned', newTask);
+
+    return { cancelled, newTask };
+  }
+
+  /**
    * Updates a task's status and records the lifecycle timestamp.
    */
   async updateTaskStatus(

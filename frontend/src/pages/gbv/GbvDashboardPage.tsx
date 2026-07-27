@@ -4,6 +4,7 @@ import { ShieldWarning, User, Clock, CheckCircle, Circle } from '@phosphor-icons
 import api from '../../api/client';
 import { Incident } from '../../types/api';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuthStore } from '../../stores/authStore';
 
 const statusLabel: Record<string, string> = {
   DRAFT: 'Draft',
@@ -24,14 +25,18 @@ const statusColor: Record<string, string> = {
 };
 
 export default function GbvDashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const isPartner = user?.role === 'PARTNER';
+  // Partners see the same view but scoped to GBV cases assigned to their agency.
   const { data: cases = [], isLoading } = useQuery<Incident[]>({
-    queryKey: ['gbv', 'cases'],
+    queryKey: ['gbv', 'cases', isPartner ? 'partner' : 'eoc'],
     queryFn: async () => {
-      const res = await api.get('/gbv/cases');
+      const res = await api.get(isPartner ? '/partner/gbv-cases' : '/gbv/cases');
       return res.data.data;
     },
     refetchInterval: 30_000,
   });
+  const detailPath = (caseId: string) => (isPartner ? `/partner/incidents/${caseId}` : `/gbv/cases/${caseId}`);
 
   const open = cases.filter(c => c.status !== 'RESOLVED');
   const resolved = cases.filter(c => c.status === 'RESOLVED');
@@ -120,7 +125,7 @@ export default function GbvDashboardPage() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <Link
-                      to={`/gbv/cases/${c.id}`}
+                      to={detailPath(c.id)}
                       className="px-3 py-1.5 text-xs font-semibold text-brand-teal border border-brand-teal/30 rounded-lg hover:bg-brand-teal hover:text-white transition-all"
                     >
                       Open Case

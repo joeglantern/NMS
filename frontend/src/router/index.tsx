@@ -195,7 +195,7 @@ export const router = createBrowserRouter([
       {
         path: 'gbv/dashboard',
         element: (
-          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'PARTNER']}>
             <GbvDashboardPage />
           </RoleGuard>
         ),
