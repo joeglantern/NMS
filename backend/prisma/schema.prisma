@@ -128,6 +128,10 @@ model Incident {
   // the sequence so numbering starts fresh at Case 001.
   caseSeq        Int            @unique @default(autoincrement()) @map("case_seq")
   caseNumber     String         @unique @map("case_number")
+  // Client-generated idempotency key for offline capture + sync (#17). When an
+  // offline device replays a queued create, the same clientRef returns the existing
+  // incident instead of creating a duplicate.
+  clientRef      String?        @unique @map("client_ref")
   status         IncidentStatus @default(DRAFT)
   chiefComplaint String         @map("chief_complaint") @db.Text
   locationName   String         @map("location_name")

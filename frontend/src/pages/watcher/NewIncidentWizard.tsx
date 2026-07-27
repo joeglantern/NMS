@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -306,6 +306,15 @@ export default function NewIncidentWizard() {
   const [suggestions, setSuggestions]           = useState<Array<{ display_name: string; lat: string; lon: string; address?: Record<string, string> }>>([]);
   const [showSuggestions, setShowSuggestions]   = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+  const [gpsBusy, setGpsBusy] = useState(false);
+  const [gpsError, setGpsError] = useState('');
+  // Idempotency key for this capture — protects against double-submit / retry
+  // creating duplicate incidents (the backend dedups on clientRef).
+  const clientRef = useRef(
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const places = usePlacesAutocomplete();
   const [showEndReason, setShowEndReason]         = useState(false);
   const [endReason, setEndReason]                 = useState('');
@@ -459,8 +468,31 @@ export default function NewIncidentWizard() {
     }
   };
 
+  // Auto-capture the device GPS and pin the scene (#4). Useful when the reporter is
+  // at the scene; falls back gracefully if permission is denied or unavailable.
+  const useMyLocation = () => {
+    if (!('geolocation' in navigator)) {
+      setGpsError('Geolocation is not supported on this device.');
+      return;
+    }
+    setGpsBusy(true);
+    setGpsError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsBusy(false);
+        handleMapClick(pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        setGpsBusy(false);
+        setGpsError(err.code === err.PERMISSION_DENIED ? 'Location permission denied.' : 'Could not get your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
+    );
+  };
+
   // ── Payload builder ────────────────────────────────────────────────────────
   const buildPayload = () => ({
+    clientRef:             clientRef.current,
     alertMode:             form.alertMode,
     alertAt:               nairobiInputToISO(form.alertAt),
     originOfAlert:         form.originOfAlert || undefined,
@@ -566,7 +598,15 @@ export default function NewIncidentWizard() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => { setForm(defaultForm); setVitals(defaultVitals); setMV(defaultMV); navigate('/watcher/new-incident', { replace: true, state: {} }); }}
+            onClick={() => {
+              // New capture in the same mount — issue a fresh idempotency key so this
+              // is treated as a distinct incident, not a duplicate of the last one.
+              clientRef.current = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                ? crypto.randomUUID()
+                : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+              setForm(defaultForm); setVitals(defaultVitals); setMV(defaultMV);
+              navigate('/watcher/new-incident', { replace: true, state: {} });
+            }}
             className="btn btn-ghost flex items-center gap-2"
           >
             <PaperPlaneRight size={16} /> New Alert
@@ -1154,6 +1194,18 @@ export default function NewIncidentWizard() {
                     ? 'Getting address for pinned location…'
                     : 'Type to search or click the map below to pin the scene'}
                 </Hint>
+                <div className="flex items-center gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    disabled={gpsBusy}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-green/40 text-brand-green hover:bg-brand-green hover:text-white transition-all disabled:opacity-50"
+                  >
+                    <MapPin size={14} weight="fill" />
+                    {gpsBusy ? 'Locating…' : 'Use my current location'}
+                  </button>
+                  {gpsError && <span className="text-xs text-red-500">{gpsError}</span>}
+                </div>
               </Field>
 
               {/* Map */}

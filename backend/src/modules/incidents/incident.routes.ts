@@ -37,6 +37,7 @@ const createIncidentSchema = z.object({
   healthcareWorkerName: z.string().optional(),
   healthcareWorkerContact: z.string().optional(),
   isGbvCase: z.boolean().optional(),
+  clientRef: z.string().min(8).max(100).optional(),
   vitals: z.object({
   temperature: z.string().optional(),
   pulseRate: z.string().optional(),

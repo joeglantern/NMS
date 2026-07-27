@@ -226,6 +226,66 @@ shows friendly labels. Any extra keys are stored and displayed using their raw n
 The dispatcher sees these under "Vitals at Hospital Handover" on the incident page.
 
 
+## 4. Automatic GPS capture (auto-pin the scene)
+
+This is requested change number 4. On the device, capture the phone's GPS instead of
+asking the user to pin a location by hand. Use the platform location API (in Expo,
+`expo-location`): request permission, get the current position, and send `lat` and
+`lng` with the incident you create. Send them as numbers.
+
+Request foreground permission first, then read the position once when the user starts
+a capture. If permission is denied, fall back to manual entry and let the user type
+the location. Do not block the whole capture on GPS; a capture with a typed location
+is still valid.
+
+The web dispatcher form also has a "Use my current location" button now, but on the
+web the operator is usually not at the scene, so GPS matters most on the mobile app.
+
+
+## 5. Offline capture and sync
+
+This is requested change number 17. Field devices lose signal, so the app should let a
+user capture an incident (and its photos) while offline and sync it when the connection
+returns. The backend now supports safe sync so a replayed capture never creates a
+duplicate.
+
+How to do it on the device:
+
+1. When the user saves a capture, generate a stable unique id on the device, for
+   example a UUID. Call it the client reference. Store the whole capture (fields plus
+   any file paths) in a local queue, for example SQLite or AsyncStorage.
+2. While offline, keep captures in the queue and show them as pending.
+3. When back online, send each queued capture to the incident create endpoint and
+   include the client reference as `clientRef`:
+
+```
+POST /incidents
+{
+  "chiefComplaint": "...",
+  "locationName": "...",
+  "subCounty": "...",
+  "lat": -1.29,
+  "lng": 36.82,
+  "clientRef": "b2f1c8e2-9c1a-4a77-9a1e-3d2f5e6a7b8c"
+}
+```
+
+4. On a 2xx response, mark that capture as synced and remove it from the queue.
+
+The `clientRef` is an idempotency key. If the network drops after the server saved the
+incident but before the app got the response, the app will retry with the same
+`clientRef`, and the server returns the incident it already created instead of making a
+second one. Generate the `clientRef` once per capture and never change it on retry.
+
+Notes and limits:
+- `clientRef` must be at least 8 characters. A UUID is ideal.
+- Attach photos (selfies, PCR files) after the incident or task exists, using the
+  existing upload endpoints, once you have the id back from sync.
+- This covers incident capture. If you also need offline queueing for other writes
+  (stops, status changes, handover vitals), tell me and I will add the same
+  idempotency handling to those endpoints.
+
+
 ## Quick reference
 
 | Purpose | Method and path |
@@ -236,6 +296,7 @@ The dispatcher sees these under "Vitals at Hospital Handover" on the incident pa
 | List task stops | GET /tasks/{taskId}/stops |
 | Mark stop reached | PATCH /tasks/{taskId}/stops/{stopId}/arrived |
 | Save handover vitals | POST /tasks/{taskId}/patient-data |
+| Create incident (with offline clientRef) | POST /incidents |
 
 If anything here is unclear or you need a field added, let me know and I will adjust
 the backend to fit the app rather than the other way around.

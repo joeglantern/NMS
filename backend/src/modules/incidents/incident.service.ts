@@ -121,6 +121,7 @@ export class IncidentService {
       locationName: string;
       subCounty: string;
       subCountySource?: 'AUTO' | 'MANUAL';
+      clientRef?: string;
       lat?: number;
       lng?: number;
       alertMode?: string;
@@ -163,11 +164,19 @@ export class IncidentService {
       ? IncidentStatus.DRAFT
       : IncidentStatus.SUBMITTED;
 
+    // Idempotent offline sync (#17): if this device already synced this capture,
+    // return the existing incident instead of creating a duplicate.
+    if (data.clientRef) {
+      const existing = await this.app.prisma.incident.findUnique({ where: { clientRef: data.clientRef } });
+      if (existing) return existing;
+    }
+
     // Create with a unique placeholder, then set the human "Case NNN" from the
     // DB-assigned caseSeq — this is collision-free and always in ascending order.
     const created = await this.app.prisma.incident.create({
       data: {
         caseNumber: `PENDING-${randomUUID()}`,
+        clientRef: data.clientRef,
         status: initialStatus,
         chiefComplaint: data.chiefComplaint,
         locationName: data.locationName,
