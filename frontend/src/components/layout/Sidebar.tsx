@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import {
   SquaresFour,
@@ -50,6 +51,8 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
   const activeCalls = useActiveCalls();
+  // When collapsed, hovering the rail temporarily expands it as an overlay.
+  const [peek, setPeek] = useState(false);
 
   const visibleItems = navItems.filter((item) => user && item.roles.includes(user.role));
   const initials = user?.name
@@ -58,7 +61,12 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
 
   return (
     <>
-      <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+      <aside
+        className={`sidebar${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}`}
+        onMouseEnter={() => collapsed && setPeek(true)}
+        onMouseLeave={() => setPeek(false)}
+      >
+       <div className="sidebar-inner">
         {/* Brand header */}
         <div className="sidebar-head">
           <div className="brand-logo">
@@ -111,6 +119,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             </div>
           </div>
         </div>
+       </div>
       </aside>
 
       {/* Mobile bottom nav */}

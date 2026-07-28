@@ -1,4 +1,4 @@
-import { Bell, SignOut, List, Phone, Sun, Moon, MagnifyingGlass } from '@phosphor-icons/react';
+import { Bell, SignOut, Phone, Sun, Moon, MagnifyingGlass } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -8,12 +8,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
 
 interface TopBarProps {
-  onToggleSidebar: () => void;
   theme: 'light' | 'dark';
   onThemeToggle: () => void;
 }
 
-export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBarProps) {
+export default function TopBar({ theme, onThemeToggle }: TopBarProps) {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [show, setShow] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -58,16 +57,7 @@ export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBar
         className="topbar"
         style={{ transform: show ? 'none' : 'translateY(-100%)', transition: 'transform .3s' }}
       >
-        {/* Left: hamburger (mobile) + search */}
-        <button
-          onClick={onToggleSidebar}
-          className="icon-btn"
-          style={{ border: 0, background: 'transparent' }}
-          title="Toggle sidebar"
-        >
-          <List size={20} weight="bold" />
-        </button>
-
+        {/* Search */}
         <div className="searchbox" style={{ display: 'flex' }}>
           <MagnifyingGlass size={16} />
           <input placeholder="Search incidents, units…" />

@@ -105,7 +105,6 @@ export default function AppShell() {
       />
       <div className="main">
         <TopBar
-          onToggleSidebar={() => setCollapsed((c) => !c)}
           theme={theme}
           onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         />
