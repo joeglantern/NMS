@@ -57,7 +57,7 @@ export default function PartnerAmbulancesPage() {
     onError: (err: any) => addNotification({ type: 'error', title: 'Failed', message: err?.response?.data?.message || 'Could not update.' }),
   });
 
-  const formValid = form.agencyId && form.registrationNumber.trim().length >= 2;
+  const formValid = form.registrationNumber.trim().length >= 2;
 
   return (
     <div className="col" style={{ gap: 24 }}>
@@ -165,7 +165,7 @@ export default function PartnerAmbulancesPage() {
 
 function cleanPayload(f: typeof emptyForm) {
   return {
-    agencyId: f.agencyId,
+    agencyId: f.agencyId || undefined,
     registrationNumber: f.registrationNumber,
     vehicleType: f.vehicleType || undefined,
     contactName: f.contactName || undefined,
@@ -201,9 +201,9 @@ function AmbulanceModal({ title, form, setForm, agencies, onClose, onSubmit, sub
         </div>
         <div className="p-5 grid grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
           <div className="col-span-2">
-            <label className={labelCls} style={{ color: 'var(--muted)' }}>Partner Agency *</label>
+            <label className={labelCls} style={{ color: 'var(--muted)' }}>Partner Agency</label>
             <select className={inputCls + ' cursor-pointer'} style={inputStyle} value={form.agencyId} onChange={e => setForm(f => ({ ...f, agencyId: e.target.value }))}>
-              <option value="">Select partner…</option>
+              <option value="">None (county / EOC-owned)</option>
               {agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
@@ -255,7 +255,7 @@ function EditAmbulanceModal({ target, agencies, onClose, onSave, submitting }: {
   submitting: boolean;
 }) {
   const [form, setForm] = useState({
-    agencyId: target.agencyId,
+    agencyId: target.agencyId ?? '',
     registrationNumber: target.registrationNumber,
     vehicleType: target.vehicleType ?? '',
     contactName: target.contactName ?? '',
@@ -273,7 +273,7 @@ function EditAmbulanceModal({ target, agencies, onClose, onSave, submitting }: {
       onClose={onClose}
       onSubmit={() => onSave(cleanPayload(form))}
       submitting={submitting}
-      valid={!!form.agencyId && form.registrationNumber.trim().length >= 2}
+      valid={form.registrationNumber.trim().length >= 2}
     />
   );
 }

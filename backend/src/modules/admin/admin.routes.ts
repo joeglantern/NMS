@@ -53,7 +53,7 @@ const updateAgencySchema = z.object({
 });
 
 const partnerAmbulanceSchema = z.object({
-  agencyId: z.string().uuid(),
+  agencyId: z.string().uuid().optional().nullable(),
   registrationNumber: z.string().min(2, 'Registration number required'),
   vehicleType: z.string().optional(),
   contactName: z.string().optional(),

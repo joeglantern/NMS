@@ -330,8 +330,9 @@ model StandbyDeployment {
 // ─────────────────────────────────────────────────────────────────────────────
 model PartnerAmbulance {
   id                 String   @id @default(uuid())
-  agencyId           String   @map("agency_id")
-  agency             Agency   @relation(fields: [agencyId], references: [id])
+  // Optional: county/EOC-owned no-tracker ambulances have no partner agency.
+  agencyId           String?  @map("agency_id")
+  agency             Agency?  @relation(fields: [agencyId], references: [id])
 
   registrationNumber String   @map("registration_number")
   vehicleType        String?  @map("vehicle_type")     // e.g. BLS / ALS / Fire engine

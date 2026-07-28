@@ -230,8 +230,8 @@ export interface TaskStop {
 
 export interface PartnerAmbulance {
   id: string;
-  agencyId: string;
-  agency?: { id: string; name: string };
+  agencyId?: string | null;
+  agency?: { id: string; name: string } | null;
   registrationNumber: string;
   vehicleType?: string | null;
   contactName?: string | null;
