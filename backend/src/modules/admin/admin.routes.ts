@@ -14,7 +14,7 @@ const createUserSchema = z.object({
   passwordRaw: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2),
   role: z.nativeEnum(Role),
-  agencyId: z.string().uuid(),
+  agencyId: z.string().min(1, 'Agency required'),
   phone: z.string().optional(),
 });
 
@@ -23,13 +23,13 @@ const updateUserSchema = z.object({
   phone: z.string().optional(),
   role: z.nativeEnum(Role).optional(),
   isActive: z.boolean().optional(),
-  agencyId: z.string().uuid().optional(),
+  agencyId: z.string().min(1).optional(),
 });
 
 const createVehicleSchema = z.object({
   registrationNumber: z.string().min(3, 'Registration number required'),
   imei: z.string().min(3, 'IMEI required'),
-  agencyId: z.string().uuid(),
+  agencyId: z.string().min(1, 'Agency required'),
 });
 
 const updateVehicleSchema = z.object({
@@ -53,7 +53,7 @@ const updateAgencySchema = z.object({
 });
 
 const partnerAmbulanceSchema = z.object({
-  agencyId: z.string().uuid().optional().nullable(),
+  agencyId: z.string().min(1).optional().nullable(),
   registrationNumber: z.string().min(2, 'Registration number required'),
   vehicleType: z.string().optional(),
   contactName: z.string().optional(),
