@@ -244,19 +244,27 @@ body {
   transition: width .22s cubic-bezier(.4,0,.2,1); z-index: 40; overflow: hidden;
 }
 .sidebar.collapsed { width: 72px; }
-.sidebar-head { display: flex; align-items: center; gap: 11px; padding: 18px 18px 16px; min-height: 70px; overflow: hidden; }
-.crest {
-  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-  background: linear-gradient(160deg,#0E5232,#06301E);
-  border: 1px solid rgba(255,255,255,.14);
-  display: grid; place-items: center; color: #fff; position: relative;
+.sidebar-head { display: flex; align-items: center; gap: 11px; padding: 18px 16px 16px; min-height: 70px; overflow: hidden; }
+.brand-logo {
+  height: 38px; flex-shrink: 0; border-radius: 9px;
+  background: #fff; padding: 6px 9px;
+  display: flex; align-items: center; justify-content: center;
 }
-.crest svg { color: #5FD79A; width: 20px; height: 20px; }
-.crest::after { content:''; position:absolute; inset:0; border-radius:10px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; overflow: hidden; white-space: nowrap; }
-.brand-text b { color: #fff; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
-.brand-text span { color: var(--nav-muted); font-size: 11px; font-weight: 500; letter-spacing: .04em; }
+.brand-logo img { height: 24px; width: auto; max-width: 100%; object-fit: contain; display: block; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; overflow: hidden; white-space: nowrap; }
+.brand-text b { color: #fff; font-size: 13.5px; font-weight: 650; letter-spacing: -.01em; }
+.brand-text span { color: var(--nav-muted); font-size: 11px; font-weight: 500; letter-spacing: .02em; }
+.sidebar-collapse-btn {
+  margin-left: auto; background: transparent; border: 0; color: var(--nav-muted);
+  cursor: pointer; padding: 5px; border-radius: 7px; flex-shrink: 0;
+  display: grid; place-items: center; transition: background .14s, color .14s;
+}
+.sidebar-collapse-btn:hover { background: rgba(255,255,255,.06); color: var(--nav-ink); }
 .sidebar.collapsed .brand-text { display: none; }
+.sidebar.collapsed .sidebar-head { padding: 18px 12px 16px; justify-content: center; }
+.sidebar.collapsed .brand-logo { height: 34px; padding: 5px 7px; }
+.sidebar.collapsed .brand-logo img { height: 22px; }
+.sidebar.collapsed .sidebar-collapse-btn { display: none; }
 
 .nav-scroll { flex: 1; overflow-y: auto; padding: 8px 10px 12px; }
 .nav-group { margin-top: 14px; }

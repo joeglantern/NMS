@@ -9,7 +9,6 @@ import {
   ChartLineUp,
   Phone,
   ClipboardText,
-  ShieldCheck,
   List,
   Hospital,
   Tag,
@@ -62,16 +61,16 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
         {/* Brand header */}
         <div className="sidebar-head">
-          <div className="crest">
-            <ShieldCheck weight="fill" />
+          <div className="brand-logo">
+            <img src="/nccg.png" alt="Nairobi City County" />
           </div>
           <div className="brand-text">
-            <b>NCCG EOC</b>
+            <b>Emergency Ops</b>
             <span>Command Centre</span>
           </div>
           <button
             onClick={onToggleCollapse}
-            style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: 'var(--nav-muted)', cursor: 'pointer', padding: 4, borderRadius: 6, flexShrink: 0 }}
+            className="sidebar-collapse-btn"
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <List size={18} />
