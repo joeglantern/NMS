@@ -35,7 +35,7 @@ const navItems = [
   { label: 'Call Logs', path: '/call-logs', Icon: Phone, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Personnel', path: '/admin/users', Icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Partners', path: '/admin/partners', Icon: Handshake, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { label: 'Partner Ambulances', path: '/admin/partner-ambulances', Icon: Truck, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { label: 'Partner Ambulances', path: '/admin/partner-ambulances', Icon: Truck, roles: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'] },
   { label: 'Facilities', path: '/admin/facilities', Icon: Hospital, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Nature Options', path: '/admin/nature-options', Icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { label: 'Bulk SMS', path: '/admin/sms', Icon: ChatText, roles: ['SUPER_ADMIN', 'ADMIN'] },

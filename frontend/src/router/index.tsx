@@ -147,7 +147,7 @@ export const router = createBrowserRouter([
       {
         path: 'admin/partner-ambulances',
         element: (
-          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
             <PartnerAmbulancesPage />
           </RoleGuard>
         ),

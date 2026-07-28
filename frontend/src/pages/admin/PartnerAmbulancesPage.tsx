@@ -4,6 +4,7 @@ import { Truck, Plus, PencilSimple, Check, X as XIcon } from '@phosphor-icons/re
 import api from '../../api/client';
 import { PartnerAmbulance } from '../../types/api';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { useAuthStore } from '../../stores/authStore';
 
 interface PartnerAgency { id: string; name: string }
 
@@ -22,19 +23,24 @@ export default function PartnerAmbulancesPage() {
   const [form, setForm] = useState(emptyForm);
   const { addNotification } = useNotificationStore();
   const queryClient = useQueryClient();
+  const role = useAuthStore((s) => s.user?.role);
+  // Admins manage the roster; dispatchers get a read-only view of active units.
+  const canManage = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ['admin', 'partner-ambulances'],
-    queryFn: async () => (await api.get('/admin/partner-ambulances')).data.data as PartnerAmbulance[],
+    queryKey: ['partner-ambulances', canManage ? 'admin' : 'fleet'],
+    queryFn: async () =>
+      (await api.get(canManage ? '/admin/partner-ambulances' : '/fleet/partner-ambulances')).data.data as PartnerAmbulance[],
   });
 
   const { data: agencies = [] } = useQuery({
     queryKey: ['incidents', 'partner-agencies'],
     queryFn: async () => (await api.get('/incidents/partner-agencies')).data.data as PartnerAgency[],
     staleTime: 5 * 60_000,
+    enabled: canManage,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'partner-ambulances'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['partner-ambulances'] });
 
   const createMutation = useMutation({
     mutationFn: () => api.post('/admin/partner-ambulances', cleanPayload(form)),
@@ -69,11 +75,17 @@ export default function PartnerAmbulancesPage() {
             <p className="font-sans text-[11px] font-black tracking-[0.2em] uppercase" style={{ color: 'var(--muted)' }}>Partner Fleet</p>
           </div>
           <h2 className="font-sans text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight uppercase" style={{ color: 'var(--ink)' }}>Partner Ambulances</h2>
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Reference vehicle info for partner ambulances (no GPS trackers).</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            {canManage
+              ? 'Reference vehicle info for partner ambulances (no GPS trackers).'
+              : 'Available ambulances with no GPS tracker — reference capacity for dispatch.'}
+          </p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="btn btn-primary flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-4 text-xs">
-          <Plus size={20} weight="bold" /> Add Ambulance
-        </button>
+        {canManage && (
+          <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="btn btn-primary flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-4 text-xs">
+            <Plus size={20} weight="bold" /> Add Ambulance
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -82,17 +94,17 @@ export default function PartnerAmbulancesPage() {
           <table className="w-full text-left border-collapse min-w-[820px]">
             <thead>
               <tr className="border-b" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
-                {['Registration', 'Partner', 'Type', 'Contact', 'Base', 'Capacity', 'Status', ''].map(h => (
-                  <th key={h} className="px-5 py-4 font-sans text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: 'var(--muted)' }}>{h}</th>
+                {['Registration', 'Partner', 'Type', 'Contact', 'Base', 'Capacity', 'Status', ...(canManage ? [''] : [])].map((h, hi) => (
+                  <th key={h || `actions-${hi}`} className="px-5 py-4 font-sans text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: 'var(--muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="px-6 py-16 text-center text-sm" style={{ color: 'var(--muted)' }}>Loading…</td></tr>
+                <tr><td colSpan={canManage ? 8 : 7} className="px-6 py-16 text-center text-sm" style={{ color: 'var(--muted)' }}>Loading…</td></tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={canManage ? 8 : 7} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Truck size={44} weight="duotone" style={{ color: 'var(--border)' }} />
                       <p className="font-bold text-sm uppercase tracking-widest" style={{ color: 'var(--muted)' }}>No partner ambulances yet</p>
@@ -115,19 +127,21 @@ export default function PartnerAmbulancesPage() {
                       {r.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
-                    <button onClick={() => setEditTarget(r)} className="btn btn-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1.5">
-                      <PencilSimple size={14} weight="bold" /> Edit
-                    </button>
-                    <button
-                      onClick={() => updateMutation.mutate({ id: r.id, data: { isActive: !r.isActive } })}
-                      disabled={updateMutation.isPending}
-                      className="btn btn-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1.5 ml-1"
-                      style={{ color: r.isActive ? 'var(--red)' : 'var(--green)' }}
-                    >
-                      {r.isActive ? <><XIcon size={14} weight="bold" /> Deactivate</> : <><Check size={14} weight="bold" /> Activate</>}
-                    </button>
-                  </td>
+                  {canManage && (
+                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                      <button onClick={() => setEditTarget(r)} className="btn btn-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1.5">
+                        <PencilSimple size={14} weight="bold" /> Edit
+                      </button>
+                      <button
+                        onClick={() => updateMutation.mutate({ id: r.id, data: { isActive: !r.isActive } })}
+                        disabled={updateMutation.isPending}
+                        className="btn btn-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1.5 ml-1"
+                        style={{ color: r.isActive ? 'var(--red)' : 'var(--green)' }}
+                      >
+                        {r.isActive ? <><XIcon size={14} weight="bold" /> Deactivate</> : <><Check size={14} weight="bold" /> Activate</>}
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
