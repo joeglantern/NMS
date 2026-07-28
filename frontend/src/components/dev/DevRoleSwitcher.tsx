@@ -29,13 +29,31 @@ const ROLE_COLORS: Record<Role, string> = {
 };
 
 /**
+ * Reads the real role from the JWT (immune to the UI role switch, which only
+ * mutates the store copy). This is the account's true login role.
+ */
+function jwtRole(token: string | null): Role | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    return (JSON.parse(json).role as Role) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Role switcher — lives as an icon in the top bar. Switches the UI role for
  * navigation/preview only (API permissions still follow the logged-in user).
+ * Only shown to real SUPER_ADMIN accounts, since only they can actually load
+ * every page's data; other roles would just hit 403s on the switched pages.
  */
 export default function DevRoleSwitcher() {
   const [open, setOpen] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
-  const { user, setRole } = useAuthStore();
+  const { user, token, setRole } = useAuthStore();
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -55,7 +73,9 @@ export default function DevRoleSwitcher() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  if (!user) return null;
+  // Only real SUPER_ADMIN logins get the switcher (read from the token, not the
+  // mutable store role, so switching to another role does not hide it).
+  if (!user || jwtRole(token) !== 'SUPER_ADMIN') return null;
 
   const switchTo = (role: Role) => {
     setRole(role);
