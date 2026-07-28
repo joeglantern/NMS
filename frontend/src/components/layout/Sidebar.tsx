@@ -62,7 +62,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         {/* Brand header */}
         <div className="sidebar-head">
           <div className="brand-logo">
-            <img src="/nccg.png" alt="Nairobi City County" />
+            <img src="/nccg-mark.png" alt="Nairobi City County" />
           </div>
           <div className="brand-text">
             <b>Emergency Ops</b>
