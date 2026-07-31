@@ -183,7 +183,6 @@ type VitalsForm = {
   respirationRate: string;
   bp: string;
   spo2: string;
-  fh: string;
 };
 
 const defaultVitals: VitalsForm = {
@@ -192,7 +191,6 @@ const defaultVitals: VitalsForm = {
   respirationRate: '',
   bp: '',
   spo2: '',
-  fh: '',
 };
 
 // ── Maternity vitals ──────────────────────────────────────────────────────────
@@ -917,10 +915,6 @@ export default function NewIncidentWizard() {
                       <Label>SPO₂</Label>
                       <input type="text" placeholder="%" className={inputCls} value={vitals.spo2} onChange={e => setVit({ spo2: e.target.value })} />
                     </Field>
-                    <Field>
-                      <Label>FH</Label>
-                      <input type="text" className={inputCls} value={vitals.fh} onChange={e => setVit({ fh: e.target.value })} />
-                    </Field>
                   </div>
                 </div>
 
@@ -1303,7 +1297,6 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="Resp. Rate" value={vitals.respirationRate} />
                 <ReviewRow label="BP"        value={vitals.bp} />
                 <ReviewRow label="SPO₂"      value={vitals.spo2} />
-                <ReviewRow label="FH"        value={vitals.fh} />
                 <ReviewRow label="Pre-hosp." value={form.preHospitalManagement} />
                 <ReviewRow label="Referral"  value={form.placeOfReferral} />
               </ReviewCard>
