@@ -283,6 +283,34 @@ export class IncidentService {
     };
   }
 
+  /**
+   * Flat incident log for the EOC Excel/CSV report. Unpaginated and ordered
+   * newest-first, joined to the target facility so the "Referral Place" column
+   * can prefer the assigned facility name over the free-text place of referral.
+   */
+  async getIncidentsForExport(filters: { status?: IncidentStatus; from?: string; to?: string }) {
+    const whereClause: any = {};
+    if (filters.status) whereClause.status = filters.status;
+
+    // Range is applied against the alert time when present, else creation time.
+    // We filter on createdAt (always set) and treat alertAt as a display value.
+    const range: any = {};
+    if (filters.from) range.gte = new Date(filters.from);
+    if (filters.to) {
+      // Make `to` inclusive of the whole day when a bare date is supplied.
+      const end = new Date(filters.to);
+      if (filters.to.length <= 10) end.setHours(23, 59, 59, 999);
+      range.lte = end;
+    }
+    if (range.gte || range.lte) whereClause.createdAt = range;
+
+    return this.app.prisma.incident.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: { targetFacility: { select: { name: true } } },
+    });
+  }
+
   async getIncidentById(id: string) {
     const incident = await this.app.prisma.incident.findUnique({
       where: { id },

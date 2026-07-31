@@ -161,6 +161,62 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   );
 
   /**
+   * GET /incidents/export — EOC incident report as CSV (opens directly in Excel).
+   * One row per alert, newest first, matching the legacy "EOC System" export columns.
+   * Restricted to dispatch/command roles; supports optional status + date range.
+   */
+  app.get<{ Querystring: { status?: IncidentStatus; from?: string; to?: string } }>(
+    '/export',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const incidents = await incidentService.getIncidentsForExport({
+        status: request.query.status,
+        from: request.query.from,
+        to: request.query.to,
+      });
+
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const asDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const asTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      // RFC-4180 escaping: wrap in quotes and double any embedded quotes.
+      const cell = (v: unknown) => {
+        const s = v == null ? '' : String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      const headers = [
+        'No', 'Date', 'Alert Time', 'Nature of Alert', 'Incidence Location',
+        'Referral Place', 'Ambulance used', 'Case Outcome',
+      ];
+
+      const lines = [headers.join(',')];
+      incidents.forEach((inc, i) => {
+        const when = inc.alertAt ?? inc.createdAt;
+        const nature = [inc.alertNature, inc.alertNatureDetail].filter(Boolean).join(' — ');
+        const referral = inc.targetFacility?.name ?? inc.placeOfReferral ?? '';
+        lines.push([
+          i + 1,
+          asDate(new Date(when)),
+          asTime(new Date(when)),
+          nature,
+          inc.locationName,
+          referral,
+          inc.ambulanceUsed ?? '',
+          inc.closureReason ?? '',
+        ].map(cell).join(','));
+      });
+
+      // Prepend a UTF-8 BOM so Excel renders accented/special characters correctly.
+      const csv = '﻿' + lines.join('\r\n');
+      const stamp = asDate(new Date()).replace(/\//g, '-');
+      return reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="EOC_Incident_Report_${stamp}.csv"`)
+        .send(csv);
+    }
+  );
+
+  /**
    * GET /incidents/:id
    */
   app.get<{ Params: { id: string } }>(

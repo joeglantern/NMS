@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, SortAscending, SortDescending, WarningCircle } from '@phosphor-icons/react';
+import { MagnifyingGlass, SortAscending, SortDescending, WarningCircle, DownloadSimple } from '@phosphor-icons/react';
 import api from '../../api/client';
 import { Incident } from '../../types/api';
 import { socket } from '../../lib/socket';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuthStore } from '../../stores/authStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 const statusPill: Record<string, string> = {
   SUBMITTED: 'pill-red',
@@ -18,8 +20,33 @@ export default function QueuePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [exporting, setExporting] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { addNotification } = useNotificationStore();
+  const role = useAuthStore((s) => s.user?.role);
+  const canExport = role === 'DISPATCHER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+
+  async function exportReport() {
+    setExporting(true);
+    try {
+      const res = await api.get('/incidents/export', {
+        responseType: 'blob',
+        params: statusFilter === 'ALL' ? {} : { status: statusFilter },
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `EOC_Incident_Report_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addNotification({ type: 'success', title: 'Exported', message: 'Incident report downloaded.' });
+    } catch {
+      addNotification({ type: 'error', title: 'Export failed', message: 'Could not generate the report.' });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const { data: incidents, isLoading } = useQuery({
     queryKey: ['incidents'],
@@ -77,6 +104,11 @@ export default function QueuePage() {
           <div className="section-title" style={{ fontSize: 20 }}>Incident Feed</div>
           <div className="muted" style={{ fontSize: 13.5, marginTop: 3 }}>Live incident management and dispatch tracking</div>
         </div>
+        {canExport && (
+          <button className="btn btn-ghost" onClick={exportReport} disabled={exporting}>
+            <DownloadSimple size={16} /> {exporting ? 'Exporting…' : 'Export Report'}
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
