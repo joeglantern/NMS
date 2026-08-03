@@ -63,16 +63,25 @@ export class AdminService {
     });
   }
 
-  async updateUser(id: string, data: { name?: string; phone?: string; role?: Role; isActive?: boolean; agencyId?: string }) {
+  async updateUser(
+    id: string,
+    data: { name?: string; email?: string; password?: string; phone?: string; role?: Role; isActive?: boolean; agencyId?: string }
+  ) {
     const user = await this.app.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundError('User');
     if (data.agencyId) {
       const agency = await this.app.prisma.agency.findUnique({ where: { id: data.agencyId } });
       if (!agency) throw new BadRequestError('Invalid agency ID');
     }
+    if (data.email && data.email !== user.email) {
+      const existing = await this.app.prisma.user.findUnique({ where: { email: data.email } });
+      if (existing) throw new ConflictError('A user with this email already exists');
+    }
+
+    const { password, ...rest } = data;
     return this.app.prisma.user.update({
       where: { id },
-      data,
+      data: { ...rest, ...(password ? { passwordHash: await hashPassword(password) } : {}) },
       select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, agencyId: true },
     });
   }

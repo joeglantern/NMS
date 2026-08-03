@@ -16,9 +16,12 @@ export default function UserManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
-  const [editRoleTarget, setEditRoleTarget] = useState<{ id: string; name: string; role: Role; agencyId: string | null } | null>(null);
+  const [editRoleTarget, setEditRoleTarget] = useState<{ id: string; name: string; email: string; role: Role; agencyId: string | null } | null>(null);
   const [editRoleValue, setEditRoleValue] = useState<Role>('WATCHER');
   const [editAgencyValue, setEditAgencyValue] = useState('');
+  const [editNameValue, setEditNameValue] = useState('');
+  const [editEmailValue, setEditEmailValue] = useState('');
+  const [editPasswordValue, setEditPasswordValue] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
   const [agencyFilter, setAgencyFilter] = useState('ALL');
@@ -46,15 +49,15 @@ export default function UserManagementPage() {
   });
 
   const editRoleMutation = useMutation({
-    mutationFn: ({ userId, role, agencyId }: { userId: string; role: Role; agencyId?: string }) =>
-      api.patch(`/admin/users/${userId}`, { role, ...(agencyId ? { agencyId } : {}) }),
+    mutationFn: ({ userId, ...data }: { userId: string; name?: string; email?: string; password?: string; role?: Role; agencyId?: string }) =>
+      api.patch(`/admin/users/${userId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       setEditRoleTarget(null);
-      addNotification({ type: 'success', title: 'Role Updated', message: 'User role has been changed.' });
+      addNotification({ type: 'success', title: 'User Updated', message: 'Changes have been saved.' });
     },
     onError: (err: any) => {
-      addNotification({ type: 'error', title: 'Update Failed', message: err?.response?.data?.message || 'Could not update role.' });
+      addNotification({ type: 'error', title: 'Update Failed', message: err?.response?.data?.message || 'Could not update user.' });
     },
   });
 
@@ -339,14 +342,17 @@ export default function UserManagementPage() {
                             <div className="absolute right-8 top-14 z-20 bg-white border border-surface-border rounded-xl shadow-xl py-1 min-w-[190px] text-left">
                               <button
                                 onClick={() => {
-                                  setEditRoleTarget({ id: u.id, name: u.name, role: u.role, agencyId: u.agencyId });
+                                  setEditRoleTarget({ id: u.id, name: u.name, email: u.email, role: u.role, agencyId: u.agencyId });
                                   setEditRoleValue(u.role);
                                   setEditAgencyValue(u.agencyId ?? '');
+                                  setEditNameValue(u.name);
+                                  setEditEmailValue(u.email);
+                                  setEditPasswordValue('');
                                   setActionMenuUserId(null);
                                 }}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold hover:bg-slate-50 transition-all text-brand-teal"
                               >
-                                <PencilSimple size={16} weight="bold" /> Edit Role
+                                <PencilSimple size={16} weight="bold" /> Edit User
                               </button>
                               <div className="border-t border-slate-100 my-0.5" />
                               <button
@@ -456,7 +462,7 @@ export default function UserManagementPage() {
         </div>
       </div>
       
-      {/* Edit Role Modal */}
+      {/* Edit User Modal */}
       {editRoleTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditRoleTarget(null)} />
@@ -465,7 +471,7 @@ export default function UserManagementPage() {
               <div className="flex items-center gap-3">
                 <PencilSimple size={18} weight="fill" className="text-brand-green" />
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Edit Role</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Edit User</p>
                   <p className="text-sm font-bold text-white">{editRoleTarget.name}</p>
                 </div>
               </div>
@@ -475,7 +481,42 @@ export default function UserManagementPage() {
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">New Role</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Name</label>
+                <input
+                  type="text"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal bg-white"
+                  value={editNameValue}
+                  onChange={e => setEditNameValue(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email</label>
+                <input
+                  type="email"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal bg-white"
+                  value={editEmailValue}
+                  onChange={e => setEditEmailValue(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Reset Password</label>
+                <input
+                  type="password"
+                  placeholder="Leave blank to keep current password"
+                  autoComplete="new-password"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal bg-white placeholder:font-normal placeholder:text-slate-400"
+                  value={editPasswordValue}
+                  onChange={e => setEditPasswordValue(e.target.value)}
+                />
+                {editPasswordValue.length > 0 && editPasswordValue.length < 8 && (
+                  <p className="text-xs text-status-warning font-medium mt-1.5">Password must be at least 8 characters.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Role</label>
                 <select
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-teal outline-none focus:ring-2 focus:ring-brand-teal bg-white"
                   value={editRoleValue}
@@ -524,14 +565,26 @@ export default function UserManagementPage() {
               <button
                 onClick={() => editRoleMutation.mutate({
                   userId: editRoleTarget.id,
-                  role: editRoleValue,
+                  name: editNameValue.trim() !== editRoleTarget.name ? editNameValue.trim() : undefined,
+                  email: editEmailValue.trim() !== editRoleTarget.email ? editEmailValue.trim() : undefined,
+                  password: editPasswordValue.length >= 8 ? editPasswordValue : undefined,
+                  role: editRoleValue !== editRoleTarget.role ? editRoleValue : undefined,
                   agencyId: editRoleValue === 'PARTNER' && editAgencyValue && editAgencyValue !== (editRoleTarget.agencyId ?? '') ? editAgencyValue : undefined,
                 })}
-                disabled={editRoleMutation.isPending || editRoleValue === editRoleTarget.role}
+                disabled={
+                  editRoleMutation.isPending ||
+                  (editPasswordValue.length > 0 && editPasswordValue.length < 8) ||
+                  (
+                    editRoleValue === editRoleTarget.role &&
+                    editNameValue.trim() === editRoleTarget.name &&
+                    editEmailValue.trim() === editRoleTarget.email &&
+                    editPasswordValue.length === 0
+                  )
+                }
                 className="flex items-center gap-2 px-5 py-2 bg-brand-teal text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Check size={14} weight="bold" />
-                {editRoleMutation.isPending ? 'Saving…' : 'Save Role'}
+                {editRoleMutation.isPending ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
