@@ -93,6 +93,73 @@ export class DispatchService {
   }
 
   /**
+   * Dispatches an incident to a partner / offline ambulance — a unit with no GPS
+   * tracker, no crew user accounts, and no mobile app.
+   *
+   * Deliberately does NOT create a Task. `Task` requires both a `vehicleId` FK
+   * into `vehicles` and a `driverId` FK into `users`; a partner ambulance has
+   * neither, and there is no responder app to drive the task lifecycle
+   * (ACCEPTED → AT_SCENE → …) anyway. Instead the assignment is recorded on the
+   * incident itself via `ambulanceUsed`, which is the same field the EOC export's
+   * "Ambulance used" column already reads — matching how these dispatches were
+   * recorded in the legacy spreadsheet.
+   *
+   * Consequence to be aware of: because there's no Task, these cases produce no
+   * automated TAT timings. The dispatcher closes them manually via Resolve.
+   */
+  async assignOfflineAmbulance(
+    incidentId: string,
+    user: { userId: string; role: Role },
+    data: { partnerAmbulanceId: string; notes?: string },
+  ) {
+    if (!(<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role)) {
+      throw new ForbiddenError('Only dispatchers can dispatch ambulances');
+    }
+
+    const [incident, ambulance] = await Promise.all([
+      this.app.prisma.incident.findUnique({ where: { id: incidentId } }),
+      this.app.prisma.partnerAmbulance.findUnique({
+        where: { id: data.partnerAmbulanceId },
+        include: { agency: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    if (!incident) throw new NotFoundError('Incident not found');
+    if (!ambulance) throw new NotFoundError('Partner ambulance not found');
+    if (!ambulance.isActive) throw new BadRequestError('That ambulance is marked inactive');
+    if (incident.status === IncidentStatus.RESOLVED) {
+      throw new BadRequestError('Case is already resolved — cannot dispatch');
+    }
+
+    // Human-readable label, e.g. "KDA 123X (Kenya Red Cross)" — this is what
+    // lands in the export's "Ambulance used" column.
+    const label = [
+      ambulance.registrationNumber,
+      ambulance.agency?.name ? `(${ambulance.agency.name})` : null,
+    ].filter(Boolean).join(' ');
+
+    const updated = await this.app.prisma.incident.update({
+      where: { id: incidentId },
+      data: {
+        status: IncidentStatus.DISPATCHED,
+        dispatcherId: incident.dispatcherId ?? user.userId,
+        ambulanceUsed: label,
+        ...(data.notes?.trim() ? { dispatcherComments: data.notes.trim() } : {}),
+      },
+      include: {
+        watcher: { select: { id: true, name: true } },
+        dispatcher: { select: { id: true, name: true } },
+      },
+    });
+
+    this.app.io.to(`incident:${incidentId}`).emit('incident:update', updated);
+    this.app.io.to(`role:${Role.WATCHER}`).emit('incident:update', updated);
+    this.app.io.to(`role:${Role.DISPATCHER}`).emit('incident:update', updated);
+
+    return updated;
+  }
+
+  /**
    * Forwards an incident to a partner agency.
    */
   async handoffToPartner(
@@ -159,6 +226,9 @@ export class DispatchService {
         registrationNumber: v.registration,
         agencyId: v.agencyId,
         isActive: v.isActive,
+        // The dispatcher UI filters candidates on `status === 'READY'`, so this
+        // MUST be returned — the Redis payload carries it as `dbStatus`.
+        status: v.dbStatus,
         lastLat: v.lat,
         lastLng: v.lng,
         lastLocationAt: v.timestamp,
@@ -197,6 +267,9 @@ export class DispatchService {
       registrationNumber: v.registrationNumber,
       agencyId: v.agencyId,
       isActive: v.isActive,
+      // Required by the dispatcher UI's `status === 'READY'` filter. Without it
+      // no vehicle is ever offered for dispatch when Redis/GPS is unavailable.
+      status: v.status,
       lastLat: v.lastLat,
       lastLng: v.lastLng,
       lastLocationAt: v.lastLocationAt,

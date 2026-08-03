@@ -196,6 +196,59 @@ export default function IncidentDetailPage() {
   }, [id, queryClient]);
 
   // Dispatch Mutation — creates a Task (crew pulled automatically from vehicle check-in)
+  // Partner / offline ambulances — no tracker, no crew app. Dispatched by
+  // recording the unit on the incident rather than creating a crew Task.
+  const { data: partnerAmbulances = [] } = useQuery({
+    queryKey: ['fleet', 'partner-ambulances'],
+    queryFn: async () => {
+      const res = await api.get('/fleet/partner-ambulances');
+      return res.data.data as Array<{
+        id: string;
+        registrationNumber: string;
+        vehicleType?: string | null;
+        contactName?: string | null;
+        contactPhone?: string | null;
+        baseLocation?: string | null;
+        agency?: { id: string; name: string } | null;
+      }>;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // A partner unit is chosen by prefixing its id, so one <select> can offer both
+  // tracked vehicles and offline ambulances without ambiguous ids.
+  const OFFLINE_PREFIX = 'partner:';
+  const isOfflineSelected = selectedVehicleId.startsWith(OFFLINE_PREFIX);
+  const selectedPartner = isOfflineSelected
+    ? partnerAmbulances.find(a => a.id === selectedVehicleId.slice(OFFLINE_PREFIX.length))
+    : undefined;
+
+  const offlineDispatchMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/dispatch/assign-offline/${id}`, {
+        partnerAmbulanceId: selectedVehicleId.slice(OFFLINE_PREFIX.length),
+        notes: dispatcherComments || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.setQueryData(['incident', id], (old: any) => ({ ...old, status: 'DISPATCHED' }));
+      queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['dispatch', 'queue'] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      addNotification({
+        type: 'success',
+        title: 'Offline Ambulance Dispatched',
+        message: `${selectedPartner?.registrationNumber ?? 'Unit'} recorded against case ${incident?.caseNumber}. Resolve the case manually once complete.`,
+      });
+    },
+    onError: (err: any) => {
+      addNotification({
+        type: 'error',
+        title: 'Dispatch Failed',
+        message: err?.response?.data?.message || 'Could not dispatch that ambulance.',
+      });
+    },
+  });
+
   const dispatchMutation = useMutation({
     mutationFn: async () => {
       return api.post('/tasks', {
@@ -962,28 +1015,6 @@ export default function IncidentDetailPage() {
 
         {/* Right Column: Dispatch Panel */}
         <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
-          {step >= 3 ? (
-          <div className="bg-white border border-surface-border rounded-xl shadow-sm p-8 flex flex-col items-center text-center gap-2">
-            {incident.status === 'RESOLVED' ? (
-              <>
-                <CheckCircle size={32} weight="fill" className="text-brand-green" />
-                <h3 className="font-semibold text-brand-teal">Case Resolved</h3>
-                <p className="text-sm text-slate-text max-w-xs">
-                  Dispatch actions are locked for closed cases. See the crew report below for the full dispatch history.
-                </p>
-              </>
-            ) : (
-              <>
-                <PaperPlaneRight size={32} weight="fill" className="text-brand-teal" />
-                <h3 className="font-semibold text-brand-teal">Vehicle Already Dispatched</h3>
-                <p className="text-sm text-slate-text max-w-xs">
-                  A crew is already assigned to this case. See the crew report below to track status, or use Reassign / Terminate to swap vehicles.
-                </p>
-              </>
-            )}
-          </div>
-          ) : (
-          <>
           <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[400px]">
             <div className="px-6 py-4 border-b border-surface-border bg-slate-50 flex justify-between items-center">
               <h3 className="font-semibold text-brand-teal">Nearest Vehicles</h3>
@@ -1045,16 +1076,58 @@ export default function IncidentDetailPage() {
                   onChange={e => setSelectedVehicleId(e.target.value)}
                 >
                   <option value="">Select available unit...</option>
-                  {(nearestVehicles || []).map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.registrationNumber}
-                      {v.currentDriver ? ` — ${v.currentDriver.name}` : ' — no driver'}
-                      {v.currentEmt ? ` / EMT ${v.currentEmt.name}` : ''}
-                      {v.currentNurse ? ` / Nurse ${v.currentNurse.name}` : ''}
-                    </option>
-                  ))}
+                  {(nearestVehicles || []).length > 0 && (
+                    <optgroup label="Tracked units (GPS + crew app)">
+                      {(nearestVehicles || []).map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.registrationNumber}
+                          {v.currentDriver ? ` — ${v.currentDriver.name}` : ' — no driver'}
+                          {v.currentEmt ? ` / EMT ${v.currentEmt.name}` : ''}
+                          {v.currentNurse ? ` / Nurse ${v.currentNurse.name}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {partnerAmbulances.length > 0 && (
+                    <optgroup label="Offline / partner ambulances (no tracker)">
+                      {partnerAmbulances.map(a => (
+                        <option key={a.id} value={`${OFFLINE_PREFIX}${a.id}`}>
+                          {a.registrationNumber}
+                          {a.agency?.name ? ` — ${a.agency.name}` : ''}
+                          {a.vehicleType ? ` · ${a.vehicleType}` : ''}
+                          {a.baseLocation ? ` · ${a.baseLocation}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
+
+              {/* Offline ambulance preview — contact details, since there's no app */}
+              {selectedPartner && (
+                <div className="rounded-lg p-4 border text-sm bg-status-info/5 border-status-info/30">
+                  <p className="text-xs font-black uppercase tracking-widest mb-3 text-slate-400">
+                    Offline unit — contact by phone
+                  </p>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-400">Agency</span>
+                    <span className="text-xs font-semibold text-brand-teal">{selectedPartner.agency?.name ?? '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-400">Contact</span>
+                    <span className="text-xs font-semibold text-brand-teal">{selectedPartner.contactName ?? '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-400">Phone</span>
+                    <span className="text-xs font-semibold text-brand-teal">{selectedPartner.contactPhone ?? '—'}</span>
+                  </div>
+                  <p className="text-xs text-slate-text mt-3">
+                    This unit has no GPS tracker or crew app — no live tracking or automatic
+                    status updates. Call the crew directly, then Resolve the case manually
+                    when it's complete.
+                  </p>
+                </div>
+              )}
 
               {/* Crew Preview — shows who is checked in to the selected vehicle */}
               {selectedVehicleId && (() => {
@@ -1095,22 +1168,30 @@ export default function IncidentDetailPage() {
                 ></textarea>
               </div>
               <button
-                onClick={() => dispatchMutation.mutate()}
+                onClick={() => (isOfflineSelected ? offlineDispatchMutation.mutate() : dispatchMutation.mutate())}
                 disabled={
                   !selectedVehicleId ||
-                  !(nearestVehicles || []).find(v => v.id === selectedVehicleId)?.currentDriver ||
+                  // Offline units have no driver account by design — only tracked
+                  // vehicles require a checked-in driver.
+                  (!isOfflineSelected &&
+                    !(nearestVehicles || []).find(v => v.id === selectedVehicleId)?.currentDriver) ||
                   dispatchMutation.isPending ||
+                  offlineDispatchMutation.isPending ||
                   step >= 3
                 }
                 className="w-full bg-brand-green text-white text-sm py-3 rounded-lg font-semibold hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PaperPlaneRight size={18} weight="fill" />
-                {step >= 3 ? 'Already Dispatched' : dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch Vehicle'}
+                {step >= 3
+                  ? 'Already Dispatched'
+                  : dispatchMutation.isPending || offlineDispatchMutation.isPending
+                  ? 'Dispatching...'
+                  : isOfflineSelected
+                  ? 'Dispatch Offline Ambulance'
+                  : 'Dispatch Vehicle'}
               </button>
             </div>
           </div>
-          </>
-          )}
         </div>
       </div>
 

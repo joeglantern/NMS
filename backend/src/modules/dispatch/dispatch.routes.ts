@@ -39,6 +39,27 @@ export const dispatchRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   );
 
   /**
+   * POST /dispatch/assign-offline/:id
+   * Dispatches an incident to a partner / offline ambulance (no GPS tracker,
+   * no crew app). Records the unit on the incident instead of creating a Task.
+   */
+  app.post<{ Params: { id: string }; Body: { partnerAmbulanceId: string; notes?: string } }>(
+    '/assign-offline/:id',
+    { preValidation: [requireRole(assignRoles)] },
+    async (request, reply) => {
+      if (!request.body?.partnerAmbulanceId) {
+        throw new BadRequestError('partnerAmbulanceId is required');
+      }
+      const incident = await dispatchService.assignOfflineAmbulance(
+        request.params.id,
+        { userId: request.user.userId, role: request.user.role },
+        { partnerAmbulanceId: request.body.partnerAmbulanceId, notes: request.body.notes },
+      );
+      return reply.send({ ok: true, data: incident });
+    }
+  );
+
+  /**
    * POST /dispatch/assign/:id
    * Dispatcher claims an incident and moves it to DISPATCH_HANDLING.
    */
