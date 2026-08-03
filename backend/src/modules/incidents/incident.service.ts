@@ -155,6 +155,7 @@ export class IncidentService {
         respirationRate?: string;
         bp?: string;
         spo2?: string;
+        gcs?: string;
         fh?: string;
       };
       maternityVitals?: Record<string, any>;
@@ -239,7 +240,20 @@ export class IncidentService {
     return incident;
   }
 
-  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: number; limit?: number }) {
+  /**
+   * Turns a bare calendar date ("2026-08-03") into the correct UTC instant for
+   * the start/end of that day **in Nairobi**. `new Date('2026-08-03')` parses as
+   * UTC midnight, which is 3am Nairobi — so a naive range silently drops the
+   * first three hours of "today" and includes three hours of the previous day.
+   * Kenya has no DST, so the fixed +03:00 offset is safe.
+   */
+  private nairobiDayBoundary(value: string, edge: 'start' | 'end'): Date {
+    const bare = /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (!bare) return new Date(value); // full timestamp supplied — trust it
+    return new Date(`${value}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}+03:00`);
+  }
+
+  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; from?: string; to?: string; page?: number; limit?: number }) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -248,6 +262,12 @@ export class IncidentService {
     if (filters.status) whereClause.status = filters.status;
     if (filters.watcherId) whereClause.watcherId = filters.watcherId;
     if (filters.caseNumber) whereClause.caseNumber = { contains: filters.caseNumber, mode: 'insensitive' };
+
+    // Date range — inclusive of both endpoints, evaluated as Nairobi days.
+    const range: any = {};
+    if (filters.from) range.gte = this.nairobiDayBoundary(filters.from, 'start');
+    if (filters.to) range.lte = this.nairobiDayBoundary(filters.to, 'end');
+    if (range.gte || range.lte) whereClause.createdAt = range;
 
     // Free-text lookup across case number, patient identity and phone numbers —
     // supports "search by National ID or phone number".
@@ -294,20 +314,24 @@ export class IncidentService {
 
     // Range is applied against the alert time when present, else creation time.
     // We filter on createdAt (always set) and treat alertAt as a display value.
+    // Bare dates are resolved as Nairobi calendar days (see nairobiDayBoundary).
     const range: any = {};
-    if (filters.from) range.gte = new Date(filters.from);
-    if (filters.to) {
-      // Make `to` inclusive of the whole day when a bare date is supplied.
-      const end = new Date(filters.to);
-      if (filters.to.length <= 10) end.setHours(23, 59, 59, 999);
-      range.lte = end;
-    }
+    if (filters.from) range.gte = this.nairobiDayBoundary(filters.from, 'start');
+    if (filters.to) range.lte = this.nairobiDayBoundary(filters.to, 'end');
     if (range.gte || range.lte) whereClause.createdAt = range;
 
     return this.app.prisma.incident.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
-      include: { targetFacility: { select: { name: true } } },
+      include: {
+        targetFacility: { select: { name: true } },
+        // Lets the export's "Ambulance used" column fall back to the tracked
+        // vehicle's registration when no free-text value was recorded.
+        tasks: {
+          select: { vehicle: { select: { registrationNumber: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
   }
 

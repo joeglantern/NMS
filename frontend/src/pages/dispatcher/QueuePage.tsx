@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, SortAscending, SortDescending, WarningCircle, DownloadSimple } from '@phosphor-icons/react';
+import { MagnifyingGlass, SortAscending, SortDescending, WarningCircle, DownloadSimple, CalendarBlank, ArrowRight } from '@phosphor-icons/react';
 import api from '../../api/client';
 import { Incident } from '../../types/api';
 import { socket } from '../../lib/socket';
@@ -16,23 +16,72 @@ const statusPill: Record<string, string> = {
   RESOLVED: 'pill-green',
 };
 
+type RangePreset = 'today' | '7d' | '30d' | 'all' | 'custom';
+
+const RANGE_LABELS: Record<RangePreset, string> = {
+  today: 'Today',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  all: 'All time',
+  custom: 'Custom',
+};
+
+/** "Today" must mean today in Nairobi, not in the browser's timezone or UTC. */
+function nairobiToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date()); // en-CA gives YYYY-MM-DD
+}
+
+function shiftDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T12:00:00Z`); // midday avoids any DST/rounding edge
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function resolveRange(
+  preset: RangePreset, customFrom: string, customTo: string,
+): { from?: string; to?: string } {
+  if (preset === 'all') return {};
+  if (preset === 'custom') {
+    return { from: customFrom || undefined, to: customTo || undefined };
+  }
+  const today = nairobiToday();
+  if (preset === 'today') return { from: today, to: today };
+  return { from: shiftDays(today, preset === '7d' ? -6 : -29), to: today };
+}
+
 export default function QueuePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [exporting, setExporting] = useState(false);
+  const [rangePreset, setRangePreset] = useState<RangePreset>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addNotification } = useNotificationStore();
   const role = useAuthStore((s) => s.user?.role);
   const canExport = role === 'DISPATCHER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
 
+  const { from, to } = useMemo(
+    () => resolveRange(rangePreset, customFrom, customTo),
+    [rangePreset, customFrom, customTo],
+  );
+  const rangeActive = !!from || !!to;
+
   async function exportReport() {
     setExporting(true);
     try {
       const res = await api.get('/incidents/export', {
         responseType: 'blob',
-        params: statusFilter === 'ALL' ? {} : { status: statusFilter },
+        // The export honours the same filters shown on screen.
+        params: {
+          ...(statusFilter === 'ALL' ? {} : { status: statusFilter }),
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {}),
+        },
       });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
@@ -48,10 +97,18 @@ export default function QueuePage() {
     }
   }
 
+  // Date filtering happens server-side — otherwise "Today" would only ever look
+  // inside the most recent page of results. A wider limit is used when a range
+  // is active so a full day/week of cases comes back in one go.
   const { data: incidents, isLoading } = useQuery({
-    queryKey: ['incidents'],
+    queryKey: ['incidents', from ?? '', to ?? ''],
     queryFn: async () => {
-      const res = await api.get('/incidents');
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (rangeActive) params.set('limit', '500');
+      const qs = params.toString();
+      const res = await api.get(`/incidents${qs ? `?${qs}` : ''}`);
       return res.data.data as Incident[];
     },
   });
@@ -70,19 +127,15 @@ export default function QueuePage() {
 
   useEffect(() => {
     socket.connect();
-    socket.on('incident:new', (incident: Incident) => {
-      queryClient.setQueryData(['incidents'], (old: Incident[] | undefined) =>
-        old ? [incident, ...old] : [incident]
-      );
-    });
-    socket.on('incident:update', (updated: Incident) => {
-      queryClient.setQueryData(['incidents'], (old: Incident[] | undefined) =>
-        old ? old.map((inc) => (inc.id === updated.id ? updated : inc)) : [updated]
-      );
-    });
+    // The feed's query key now carries the active date range, so an exact-key
+    // cache write would miss. Invalidating by prefix refetches whichever range
+    // is currently on screen — and correctly drops incidents outside it.
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    socket.on('incident:new', refresh);
+    socket.on('incident:update', refresh);
     return () => {
-      socket.off('incident:new');
-      socket.off('incident:update');
+      socket.off('incident:new', refresh);
+      socket.off('incident:update', refresh);
     };
   }, [queryClient]);
 
@@ -142,6 +195,42 @@ export default function QueuePage() {
             {sortOrder === 'desc' ? <SortDescending size={16} /> : <SortAscending size={16} />}
             {sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
           </button>
+        </div>
+
+        {/* Date range */}
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <CalendarBlank size={16} color="var(--muted)" />
+          <div className="seg">
+            {(['today', '7d', '30d', 'all', 'custom'] as RangePreset[]).map((p) => (
+              <button key={p} className={rangePreset === p ? 'on' : ''} onClick={() => setRangePreset(p)}>
+                {RANGE_LABELS[p]}
+              </button>
+            ))}
+          </div>
+          {rangePreset === 'custom' && (
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                type="date"
+                className="input"
+                style={{ height: 34, width: 150, padding: '0 10px', fontSize: 13 }}
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+              />
+              <ArrowRight size={13} color="var(--muted)" />
+              <input
+                type="date"
+                className="input"
+                style={{ height: 34, width: 150, padding: '0 10px', fontSize: 13 }}
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+              />
+            </div>
+          )}
+          {searching && rangeActive && (
+            <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
+              Search covers all history — date range not applied
+            </span>
+          )}
         </div>
       </div>
 

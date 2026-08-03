@@ -44,6 +44,7 @@ const createIncidentSchema = z.object({
   respirationRate: z.string().optional(),
   bp: z.string().optional(),
   spo2: z.string().optional(),
+  gcs: z.string().optional(),
   fh: z.string().optional(),
 }).optional(),
   maternityVitals: z.record(z.string(), z.unknown()).optional(),
@@ -81,6 +82,7 @@ const updateIncidentSchema = z.object({
   respirationRate: z.string().optional(),
   bp: z.string().optional(),
   spo2: z.string().optional(),
+  gcs: z.string().optional(),
   fh: z.string().optional(),
 }).optional(),
   maternityVitals: z.record(z.string(), z.unknown()).optional(),
@@ -142,7 +144,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   /**
    * GET /incidents
    */
-  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: string; limit?: string } }>(
+  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; from?: string; to?: string; page?: string; limit?: string } }>(
     '/',
     async (request, reply) => {
       const page = request.query.page ? parseInt(request.query.page, 10) : 1;
@@ -153,6 +155,8 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         watcherId: request.query.watcherId,
         caseNumber: request.query.caseNumber,
         search: request.query.search,
+        from: request.query.from,
+        to: request.query.to,
         page,
         limit,
       });
@@ -175,9 +179,23 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         to: request.query.to,
       });
 
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const asDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-      const asTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      // All EOC timestamps are Nairobi wall-clock. The previous implementation
+      // used d.getDate()/d.getHours(), which is the SERVER's local timezone —
+      // on a UTC host every exported time was 3 hours behind the real one.
+      const NBO = 'Africa/Nairobi';
+      const partsOf = (d: Date) => {
+        const p = new Intl.DateTimeFormat('en-GB', {
+          timeZone: NBO,
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+        }).formatToParts(d);
+        const get = (t: string) => p.find(x => x.type === t)?.value ?? '';
+        return { y: get('year'), m: get('month'), d: get('day'), hh: get('hour'), mm: get('minute') };
+      };
+      const asDate = (d: Date) => { const p = partsOf(d); return `${p.d}/${p.m}/${p.y}`; };
+      // The legacy sheet's "Alert Time" column holds a full timestamp
+      // (e.g. 2026-07-29T12:08), not just the clock time.
+      const asStamp = (d: Date) => { const p = partsOf(d); return `${p.y}-${p.m}-${p.d}T${p.hh}:${p.mm}`; };
       // RFC-4180 escaping: wrap in quotes and double any embedded quotes.
       const cell = (v: unknown) => {
         const s = v == null ? '' : String(v);
@@ -194,14 +212,19 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         const when = inc.alertAt ?? inc.createdAt;
         const nature = [inc.alertNature, inc.alertNatureDetail].filter(Boolean).join(' — ');
         const referral = inc.targetFacility?.name ?? inc.placeOfReferral ?? '';
+        // "Ambulance used": the free-text field is set both by offline/partner
+        // dispatches and by manual entry; fall back to the tracked vehicle's
+        // registration from the dispatched task when it's a GPS unit.
+        const taskVehicle = inc.tasks?.find(t => t.vehicle?.registrationNumber)?.vehicle?.registrationNumber;
+        const ambulance = inc.ambulanceUsed ?? taskVehicle ?? '';
         lines.push([
           i + 1,
           asDate(new Date(when)),
-          asTime(new Date(when)),
+          asStamp(new Date(when)),
           nature,
           inc.locationName,
           referral,
-          inc.ambulanceUsed ?? '',
+          ambulance,
           inc.closureReason ?? '',
         ].map(cell).join(','));
       });

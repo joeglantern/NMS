@@ -28,7 +28,7 @@ interface AnalyticsData {
   ambulanceUtilization: { ambulance: string; cases: number }[];
 }
 
-type Preset = '7d' | '30d' | '90d' | 'custom';
+type Preset = 'today' | '7d' | '30d' | '90d' | 'custom';
 
 const GENDER_COLORS: Record<string, string> = {
   Male: '#15211B',
@@ -45,7 +45,18 @@ const STATUS_COLORS: Record<string, string> = {
   DISPATCH_ON_HOLD: '#94A099',
 };
 
+/** Today's date in Nairobi (en-CA formats as YYYY-MM-DD). */
+function nairobiToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
 function getDateRange(preset: Preset, customFrom: string, customTo: string): { from: string; to: string } {
+  if (preset === 'today') {
+    const t = nairobiToday();
+    return { from: t, to: t };
+  }
   const now = new Date();
   if (preset === '7d') {
     return {
@@ -155,9 +166,9 @@ export default function AnalyticsPage() {
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
           <CalendarBlank size={16} color="var(--muted)" />
           <div className="seg">
-            {(['7d', '30d', '90d'] as Preset[]).map((p) => (
+            {(['today', '7d', '30d', '90d'] as Preset[]).map((p) => (
               <button key={p} className={preset === p ? 'on' : ''} onClick={() => setPreset(p)}>
-                {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+                {p === 'today' ? 'Today' : p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
               </button>
             ))}
             <button className={preset === 'custom' ? 'on' : ''} onClick={() => setPreset('custom')}>Custom</button>
