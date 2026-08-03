@@ -12,6 +12,7 @@ import CreatableCombobox from '../../components/shared/CreatableCombobox';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePlacesAutocomplete } from '../../hooks/usePlacesAutocomplete';
 import { toNairobiInput, nairobiInputToISO } from '../../lib/datetime';
+import type { Facility } from '../../types/api';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | boolean }
 
 // ── Wizard stepper ────────────────────────────────────────────────────────────
 
-const STEPS = ['Alert', 'Patient', 'Incident', 'Location', 'Review'];
+const STEPS = ['Alert & Location', 'Patient & Incident', 'Review'];
 
 function WizardStepper({ current }: { current: number }) {
   return (
@@ -183,6 +184,7 @@ type VitalsForm = {
   respirationRate: string;
   bp: string;
   spo2: string;
+  gcs: string;
 };
 
 const defaultVitals: VitalsForm = {
@@ -191,6 +193,7 @@ const defaultVitals: VitalsForm = {
   respirationRate: '',
   bp: '',
   spo2: '',
+  gcs: '',
 };
 
 // ── Maternity vitals ──────────────────────────────────────────────────────────
@@ -248,6 +251,7 @@ type FormState = {
   watcherComments: string;
   preHospitalManagement: string;
   placeOfReferral: string;
+  targetFacilityId: string;
   healthcareWorkerName: string;
   healthcareWorkerContact: string;
   isGbvCase: boolean;
@@ -278,6 +282,7 @@ const defaultForm: FormState = {
   watcherComments: '',
   preHospitalManagement: '',
   placeOfReferral: '',
+  targetFacilityId: '',
   healthcareWorkerName: '',
   healthcareWorkerContact: '',
   isGbvCase: false,
@@ -295,7 +300,7 @@ export default function NewIncidentWizard() {
   const ended         = (location.state as any)?.ended;
   const surveillance  = (location.state as any)?.surveillance;
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [vitals, setVitals] = useState<VitalsForm>(defaultVitals);
   const setVit = (u: Partial<VitalsForm>) => setVitals(p => ({ ...p, ...u }));
@@ -336,33 +341,87 @@ export default function NewIncidentWizard() {
   const detailsForNature = natureOptions.find(o => o.nature === form.alertNature)?.details ?? [];
   const isMaternity = form.alertNature?.toLowerCase().includes('maternity');
 
+  // ── Referral facilities — same source as the dispatcher's dropdown ─────────
+  const { data: facilities = [] } = useQuery<Facility[]>({
+    queryKey: ['facilities'],
+    queryFn: async () => {
+      const res = await api.get('/incidents/facilities');
+      return res.data.data;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // Facilities in the incident's sub-county float to the top, then alphabetical.
+  const facilityOptions = [...facilities].sort((a, b) => {
+    const region = form.subCounty.trim().toLowerCase();
+    const aIn = !!region && a.subCounty?.trim().toLowerCase() === region;
+    const bIn = !!region && b.subCounty?.trim().toLowerCase() === region;
+    if (aIn !== bIn) return aIn ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 
 
-  // ── Step validation (Alert · Patient · Incident · Location · Review) ─────────
-  const step1Ok = !!form.alertAt && !!form.alertMode;                 // Alert
-  const step3Ok = !!form.alertNature && !!form.chiefComplaint.trim(); // Incident
-  const step4Ok = !!form.locationName.trim() && !!form.subCounty;     // Location
-  const canSubmit = step1Ok && step3Ok && step4Ok;
 
-  const stepOk: Record<number, boolean> = { 1: step1Ok, 2: true, 3: step3Ok, 4: step4Ok, 5: canSubmit };
+  // ── Step validation (Screen 1: Alert + Location · Screen 2: Patient + Incident · Screen 3: Review) ──
+  const alertOk    = !!form.alertAt && !!form.alertMode;                 // Alert
+  const locationOk = !!form.locationName.trim() && !!form.subCounty;     // Location
+  const incidentOk = !!form.alertNature && !!form.chiefComplaint.trim(); // Incident (Patient has no required fields)
+  const step1Ok = alertOk && locationOk;    // Screen 1: Alert & Location
+  const step2Ok = incidentOk;               // Screen 2: Patient & Incident
+  const canSubmit = step1Ok && step2Ok;
+
+  const stepOk: Record<number, boolean> = { 1: step1Ok, 2: step2Ok, 3: canSubmit };
   const missingByStep: Record<number, string[]> = {
-    1: [!form.alertAt && 'date & time', !form.alertMode && 'alert mode'].filter(Boolean) as string[],
-    2: [],
-    3: [!form.alertNature && 'nature of alert', !form.chiefComplaint && 'chief complaint'].filter(Boolean) as string[],
-    4: [!form.locationName && 'location', !form.subCounty && 'sub-county'].filter(Boolean) as string[],
-    5: [],
+    1: [
+      !form.alertAt && 'date & time', !form.alertMode && 'alert mode',
+      !form.locationName && 'location', !form.subCounty && 'sub-county',
+    ].filter(Boolean) as string[],
+    2: [!form.alertNature && 'nature of alert', !form.chiefComplaint && 'chief complaint'].filter(Boolean) as string[],
+    3: [],
   };
 
   // ── Sub-county detection ───────────────────────────────────────────────────
-  // Match any of the given place strings against the known Nairobi sub-counties.
+  // Bare direction words are NEVER enough to pick a sub-county on their own.
+  // Google frequently returns a component of just "North" / "West" for Nairobi
+  // addresses; matching that loosely used to select "Dagoretti North" for
+  // incidents anywhere in the city.
+  const DIRECTION_WORDS = new Set(['north', 'south', 'east', 'west', 'central']);
+
+  const normalizePlace = (s: string) =>
+    s.toLowerCase().replace(/[^a-z\s']/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const hasWholeWord = (haystack: string, needle: string) =>
+    new RegExp(`(^|\\s)${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|\\s)`).test(haystack);
+
+  // Match any of the given place strings against the known Nairobi sub-counties,
+  // strongest signal first.
   function matchSubCounty(candidates: string[]): string {
-    const lowered = candidates.filter(Boolean).map(s => s.toLowerCase());
+    const lowered = candidates.filter(Boolean).map(normalizePlace).filter(Boolean);
+    if (lowered.length === 0) return '';
+
+    // 1. Exact match — "Embakasi Central" === "Embakasi Central"
     for (const sub of SUB_COUNTIES) {
-      const subLower = sub.toLowerCase();
-      if (lowered.some(c => c.includes(subLower) || subLower.includes(c))) {
+      const s = normalizePlace(sub);
+      if (lowered.some(c => c === s)) return sub;
+    }
+
+    // 2. A candidate contains the FULL sub-county name as whole words —
+    //    e.g. "Embakasi Central Constituency" → Embakasi Central
+    for (const sub of SUB_COUNTIES) {
+      const s = normalizePlace(sub);
+      if (lowered.some(c => hasWholeWord(c, s))) return sub;
+    }
+
+    // 3. A distinctive candidate word appears in the sub-county name —
+    //    e.g. "Kasarani" → Kasarani. Direction words and very short tokens are
+    //    excluded so "North" can never decide the sub-county by itself.
+    for (const sub of SUB_COUNTIES) {
+      const s = normalizePlace(sub);
+      if (lowered.some(c => c.length >= 4 && !DIRECTION_WORDS.has(c) && hasWholeWord(s, c))) {
         return sub;
       }
     }
+
     return '';
   }
 
@@ -373,11 +432,17 @@ export default function NewIncidentWizard() {
       address.county,
       address.state_district,
       address.municipality,
+      address.neighbourhood,
+      address.town,
     ]);
     if (canonical) return canonical;
     // No official sub-county matched — fall back to the most specific area name
     // so the field still auto-fills (it's free-text; the watcher can adjust).
-    return address.city_district || address.suburb || address.municipality || '';
+    // A bare direction word is useless here, so skip it.
+    const fallback = [address.city_district, address.suburb, address.neighbourhood, address.municipality]
+      .filter(Boolean)
+      .find(v => !DIRECTION_WORDS.has(normalizePlace(v)));
+    return fallback ?? '';
   }
 
   // ── Location autocomplete — Google Places when key present, Nominatim fallback ──
@@ -515,6 +580,7 @@ export default function NewIncidentWizard() {
     watcherComments:       form.watcherComments || undefined,
     preHospitalManagement: form.preHospitalManagement || undefined,
     placeOfReferral:       form.placeOfReferral || undefined,
+    targetFacilityId:      form.targetFacilityId || undefined,
     healthcareWorkerName:    form.healthcareWorkerName || undefined,
     healthcareWorkerContact: form.healthcareWorkerContact || undefined,
     isGbvCase:             form.isGbvCase || undefined,
@@ -622,10 +688,8 @@ export default function NewIncidentWizard() {
 
   // ── Step titles ────────────────────────────────────────────────────────────
   const stepTitle =
-    step === 1 ? 'Alert Details'
-    : step === 2 ? 'Patient Details'
-    : step === 3 ? 'Incident Details'
-    : step === 4 ? 'Incident Location'
+    step === 1 ? 'Alert & Location'
+    : step === 2 ? 'Patient & Incident Details'
     : 'Review & Submit';
 
   return (
@@ -659,7 +723,9 @@ export default function NewIncidentWizard() {
 
         {/* ─────────────── STEP 1: Alert ─────────────── */}
         {step === 1 && (
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+
+              {/* ── Card 1: Alert ── */}
               <SectionCard title="Alert" icon={Phone}>
                 <Field>
                   <Label required>Alert Date &amp; Time</Label>
@@ -697,13 +763,174 @@ export default function NewIncidentWizard() {
                     <input type="tel" placeholder="07XXXXXXXX" className={inputCls} value={form.notifierPhone} onChange={e => set({ notifierPhone: e.target.value })} />
                   </Field>
                 </div>
+
+                <Field>
+                  <Label>Referral Facility</Label>
+                  <select
+                    className={selectCls}
+                    value={form.targetFacilityId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const f = facilities.find(x => x.id === id);
+                      // Keep placeOfReferral in sync with the chosen facility's
+                      // name — existing analytics/exports read that column.
+                      set({ targetFacilityId: id, placeOfReferral: f?.name ?? '' });
+                    }}
+                  >
+                    <option value="">— No referral facility —</option>
+                    {facilityOptions.map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                        {f.type ? ` · ${f.type}` : ''}
+                        {f.subCounty ? ` · ${f.subCounty}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <Hint>
+                    {facilities.length === 0
+                      ? 'No facilities configured yet — add them under Admin → Facilities.'
+                      : 'Facilities in the selected sub-county are listed first.'}
+                  </Hint>
+                </Field>
+              </SectionCard>
+
+              {/* ── Card 2: Location ── */}
+              <SectionCard title="Incident Location" icon={MapPin}>
+                <Field>
+                  <Label required>Location of Incident</Label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Type to search, or click the map to pin…"
+                      className={`${inputCls} pr-10`}
+                      value={form.locationName}
+                      onChange={e => { set({ locationName: e.target.value }); if (!e.target.value) { setSuggestions([]); places.clear(); } }}
+                      onFocus={() => (places.available ? places.suggestions.length > 0 : suggestions.length > 0) && setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      autoComplete="off"
+                    />
+                    {(isReverseGeocoding || places.isLoading) && (
+                      <div className="absolute right-3 top-3 w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {/* Google Places suggestions */}
+                    {places.available && showSuggestions && places.suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
+                        {places.suggestions.map(s => (
+                          <button
+                            key={s.placeId}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                            onMouseDown={() => selectGoogleSuggestion(s.placeId, s.description)}
+                          >
+                            <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
+                            <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
+                              {s.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* Nominatim fallback suggestions */}
+                    {!places.available && showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
+                        {suggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                            onMouseDown={() => selectSuggestion(s)}
+                          >
+                            <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
+                            <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
+                              {s.display_name.split(',').slice(0, 3).join(',')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Hint>
+                    {isReverseGeocoding
+                      ? 'Getting address for pinned location…'
+                      : 'Type to search or click the map below to pin the scene'}
+                  </Hint>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={useMyLocation}
+                      disabled={gpsBusy}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-green/40 text-brand-green hover:bg-brand-green hover:text-white transition-all disabled:opacity-50"
+                    >
+                      <MapPin size={14} weight="fill" />
+                      {gpsBusy ? 'Locating…' : 'Use my current location'}
+                    </button>
+                    {gpsError && <span className="text-xs text-red-500">{gpsError}</span>}
+                  </div>
+                </Field>
+
+                {/* Map */}
+                <div className="card overflow-hidden">
+                  <div
+                    className="px-3 py-2 border-b flex items-center gap-2"
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+                  >
+                    <MapPin size={12} weight="fill" className="text-brand-green shrink-0" />
+                    <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
+                      Click anywhere on the map to pin the scene — address fills automatically
+                    </span>
+                  </div>
+                  <Map
+                    center={[form.lat, form.lng]}
+                    zoom={14}
+                    markers={[{ id: 'scene', lat: form.lat, lng: form.lng, title: form.locationName || 'Scene', type: 'incident' }]}
+                    onLocationSelect={handleMapClick}
+                    layerType="street"
+                    className="h-80 w-full"
+                  />
+                  {form.locationName && !isReverseGeocoding && (
+                    <div
+                      className="px-4 py-2.5 border-t text-xs font-bold flex items-center gap-1.5 text-brand-green"
+                      style={{ background: 'var(--green-light)', borderColor: 'var(--border)' }}
+                    >
+                      <MapPin size={12} weight="fill" /> {form.locationName} · {form.lat.toFixed(4)}, {form.lng.toFixed(4)}
+                    </div>
+                  )}
+                  {isReverseGeocoding && (
+                    <div
+                      className="px-4 py-2.5 border-t text-xs flex items-center gap-2"
+                      style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--muted)' }}
+                    >
+                      <div className="w-3 h-3 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                      Getting address…
+                    </div>
+                  )}
+                </div>
+
+                <Field>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label required>Sub-County</Label>
+                    {form.subCounty && subCountySource === 'AUTO' && (
+                      <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#047857' }}>Auto-filled</span>
+                    )}
+                    {form.subCounty && subCountySource === 'MANUAL' && (
+                      <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>Manual</span>
+                    )}
+                  </div>
+                  <CreatableCombobox
+                    options={SUB_COUNTIES}
+                    value={form.subCounty}
+                    onChange={(v) => { set({ subCounty: v }); setSubCountySource(v ? 'MANUAL' : ''); }}
+                    onCreateOption={() => {}}
+                    placeholder="Auto-fills from the location — or type to search / add your own"
+                  />
+                </Field>
               </SectionCard>
           </div>
         )}
 
         {/* ─────────────── STEP 2: Patient ─────────────── */}
         {step === 2 && (
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
               <SectionCard title="Patient" icon={User}>
                 <Field>
                   <Label>Patient Name</Label>
@@ -828,12 +1055,7 @@ export default function NewIncidentWizard() {
                   </div>
                 </label>
               </SectionCard>
-          </div>
-        )}
 
-        {/* ─────────────── STEP 3: Incident Details ─────────────── */}
-        {step === 3 && (
-          <div className="max-w-3xl mx-auto space-y-4">
               <SectionCard title="Incident Details" icon={FirstAid}>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Nature of Alert */}
@@ -915,6 +1137,10 @@ export default function NewIncidentWizard() {
                       <Label>SPO₂</Label>
                       <input type="text" placeholder="%" className={inputCls} value={vitals.spo2} onChange={e => setVit({ spo2: e.target.value })} />
                     </Field>
+                    <Field>
+                      <Label>GCS</Label>
+                      <input type="text" placeholder="/15" className={inputCls} value={vitals.gcs} onChange={e => setVit({ gcs: e.target.value })} />
+                    </Field>
                   </div>
                 </div>
 
@@ -967,6 +1193,7 @@ export default function NewIncidentWizard() {
 
               {/* ── Maternity Vitals — only when nature is Maternity ── */}
               {isMaternity && (
+                <div className="lg:col-span-2">
                 <SectionCard title="Maternity Vitals" icon={Baby}>
 
                   {/* Mother Information */}
@@ -1122,166 +1349,32 @@ export default function NewIncidentWizard() {
                   </div>
 
                 </SectionCard>
+                </div>
               )}
           </div>
         )}
 
-        {/* ─────────────── STEP 4: Location ─────────────── */}
-        {step === 4 && (
-          <div className="max-w-3xl mx-auto space-y-4">
-            <SectionCard title="Incident Location" icon={MapPin}>
-              <Field>
-                <Label required>Location of Incident</Label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Type to search, or click the map to pin…"
-                    className={`${inputCls} pr-10`}
-                    value={form.locationName}
-                    onChange={e => { set({ locationName: e.target.value }); if (!e.target.value) { setSuggestions([]); places.clear(); } }}
-                    onFocus={() => (places.available ? places.suggestions.length > 0 : suggestions.length > 0) && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                    autoComplete="off"
-                  />
-                  {(isReverseGeocoding || places.isLoading) && (
-                    <div className="absolute right-3 top-3 w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
-                  )}
-                  {/* Google Places suggestions */}
-                  {places.available && showSuggestions && places.suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
-                      {places.suggestions.map(s => (
-                        <button
-                          key={s.placeId}
-                          type="button"
-                          className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
-                          onMouseDown={() => selectGoogleSuggestion(s.placeId, s.description)}
-                        >
-                          <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
-                          <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
-                            {s.description}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {/* Nominatim fallback suggestions */}
-                  {!places.available && showSuggestions && suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl shadow-xl overflow-hidden card">
-                      {suggestions.map((s, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
-                          onMouseDown={() => selectSuggestion(s)}
-                        >
-                          <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
-                          <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
-                            {s.display_name.split(',').slice(0, 3).join(',')}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Hint>
-                  {isReverseGeocoding
-                    ? 'Getting address for pinned location…'
-                    : 'Type to search or click the map below to pin the scene'}
-                </Hint>
-                <div className="flex items-center gap-3 mt-2">
-                  <button
-                    type="button"
-                    onClick={useMyLocation}
-                    disabled={gpsBusy}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-green/40 text-brand-green hover:bg-brand-green hover:text-white transition-all disabled:opacity-50"
-                  >
-                    <MapPin size={14} weight="fill" />
-                    {gpsBusy ? 'Locating…' : 'Use my current location'}
-                  </button>
-                  {gpsError && <span className="text-xs text-red-500">{gpsError}</span>}
-                </div>
-              </Field>
-
-              {/* Map */}
-              <div className="card overflow-hidden">
-                <div
-                  className="px-3 py-2 border-b flex items-center gap-2"
-                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
-                >
-                  <MapPin size={12} weight="fill" className="text-brand-green shrink-0" />
-                  <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
-                    Click anywhere on the map to pin the scene — address fills automatically
-                  </span>
-                </div>
-                <Map
-                  center={[form.lat, form.lng]}
-                  zoom={14}
-                  markers={[{ id: 'scene', lat: form.lat, lng: form.lng, title: form.locationName || 'Scene', type: 'incident' }]}
-                  onLocationSelect={handleMapClick}
-                  layerType="street"
-                  className="h-80 w-full"
-                />
-                {form.locationName && !isReverseGeocoding && (
-                  <div
-                    className="px-4 py-2.5 border-t text-xs font-bold flex items-center gap-1.5 text-brand-green"
-                    style={{ background: 'var(--green-light)', borderColor: 'var(--border)' }}
-                  >
-                    <MapPin size={12} weight="fill" /> {form.locationName} · {form.lat.toFixed(4)}, {form.lng.toFixed(4)}
-                  </div>
-                )}
-                {isReverseGeocoding && (
-                  <div
-                    className="px-4 py-2.5 border-t text-xs flex items-center gap-2"
-                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--muted)' }}
-                  >
-                    <div className="w-3 h-3 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
-                    Getting address…
-                  </div>
-                )}
-              </div>
-
-              <Field>
-                <div className="flex items-center gap-2 mb-1">
-                  <Label required>Sub-County</Label>
-                  {form.subCounty && subCountySource === 'AUTO' && (
-                    <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#047857' }}>Auto-filled</span>
-                  )}
-                  {form.subCounty && subCountySource === 'MANUAL' && (
-                    <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>Manual</span>
-                  )}
-                </div>
-                <CreatableCombobox
-                  options={SUB_COUNTIES}
-                  value={form.subCounty}
-                  onChange={(v) => { set({ subCounty: v }); setSubCountySource(v ? 'MANUAL' : ''); }}
-                  onCreateOption={() => {}}
-                  placeholder="Auto-fills from the location — or type to search / add your own"
-                />
-              </Field>
-            </SectionCard>
-          </div>
-        )}
 
         {/* ─────────────── STEP 5: Review & Submit ─────────────── */}
-        {step === 5 && (
+        {step === 3 && (
           <div className="max-w-4xl mx-auto space-y-4">
 
             {/* Bento review grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ReviewCard title="Step 1 · Alert Info" onEdit={() => setStep(1)}>
+              <ReviewCard title="Alert" onEdit={() => setStep(1)}>
                 <ReviewRow label="Alert Time" value={form.alertAt} />
                 <ReviewRow label="Mode"       value={form.alertMode} />
                 <ReviewRow label="Origin"     value={form.originOfAlert} />
                 <ReviewRow label="Notifier"   value={form.notifierName ? `${form.notifierName} · ${form.notifierPhone}` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 4 · Location" onEdit={() => setStep(4)}>
+              <ReviewCard title="Location" onEdit={() => setStep(1)}>
                 <ReviewRow label="Location"   value={form.locationName} />
                 <ReviewRow label="Sub-County" value={form.subCounty ? `${form.subCounty}${subCountySource ? ` (${subCountySource === 'AUTO' ? 'auto-filled' : 'manual'})` : ''}` : undefined} />
                 <ReviewRow label="Coords"     value={form.lat ? `${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 2 · Patient" onEdit={() => setStep(2)}>
+              <ReviewCard title="Patient" onEdit={() => setStep(2)}>
                 <ReviewRow label="Name"        value={form.patientName} />
                 <ReviewRow label="Patient Phone" value={form.patientContact} />
                 <ReviewRow label="Age / Sex"   value={[form.patientAge, form.patientGender].filter(Boolean).join(' · ') || undefined} />
@@ -1289,7 +1382,7 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="MCI"         value={form.massCasualty ? `Yes (${form.massCasualtyCount || '?'} casualties)` : undefined} />
               </ReviewCard>
 
-              <ReviewCard title="Step 3 · Incident Details" onEdit={() => setStep(3)}>
+              <ReviewCard title="Incident Details" onEdit={() => setStep(2)}>
                 <ReviewRow label="Nature"    value={[form.alertNature, form.alertNatureDetail].filter(Boolean).join(' → ') || undefined} />
                 <ReviewRow label="Complaint" value={form.chiefComplaint} />
                 <ReviewRow label="Temp"      value={vitals.temperature} />
@@ -1297,12 +1390,13 @@ export default function NewIncidentWizard() {
                 <ReviewRow label="Resp. Rate" value={vitals.respirationRate} />
                 <ReviewRow label="BP"        value={vitals.bp} />
                 <ReviewRow label="SPO₂"      value={vitals.spo2} />
+                <ReviewRow label="GCS"       value={vitals.gcs} />
                 <ReviewRow label="Pre-hosp." value={form.preHospitalManagement} />
                 <ReviewRow label="Referral"  value={form.placeOfReferral} />
               </ReviewCard>
 
               {isMaternity && (
-                <ReviewCard title="Maternity Vitals" onEdit={() => setStep(3)} className="md:col-span-2">
+                <ReviewCard title="Maternity Vitals" onEdit={() => setStep(2)} className="md:col-span-2">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8">
                     <ReviewRow label="Admission"       value={mv.admissionDateTime} />
                     <ReviewRow label="Parity"          value={mv.parity} />
@@ -1367,7 +1461,7 @@ export default function NewIncidentWizard() {
       </div>
 
       {/* ── Alert Surveillance panel (Step 3 only) ── */}
-      {showSurveillance && step === 5 && (
+      {showSurveillance && step === 3 && (
         <div
           className="border-t-2 border-amber-500/30 px-6 py-4 shrink-0"
           style={{ background: 'var(--surface)' }}
@@ -1410,7 +1504,7 @@ export default function NewIncidentWizard() {
       )}
 
       {/* ── End Case reason panel (Step 3 only) ── */}
-      {showEndReason && step === 5 && (
+      {showEndReason && step === 3 && (
         <div
           className="border-t-2 border-status-danger/30 px-6 py-4 shrink-0"
           style={{ background: 'var(--surface)' }}
@@ -1463,7 +1557,7 @@ export default function NewIncidentWizard() {
         {/* Back / Cancel */}
         <button
           type="button"
-          onClick={() => step === 1 ? navigate(-1) : setStep((s) => (s - 1) as 1 | 2 | 3 | 4 | 5)}
+          onClick={() => step === 1 ? navigate(-1) : setStep((s) => (s - 1) as 1 | 2 | 3)}
           className="btn btn-ghost"
         >
           {step === 1 ? (
@@ -1476,7 +1570,7 @@ export default function NewIncidentWizard() {
         <div className="flex items-center gap-3">
 
           {/* Steps 1–4 → Next */}
-          {step < 5 && (
+          {step < 3 && (
             <>
               {!stepOk[step] && missingByStep[step].length > 0 && (
                 <p className="text-xs max-w-xs text-right hidden sm:block" style={{ color: 'var(--muted)' }}>
@@ -1485,17 +1579,17 @@ export default function NewIncidentWizard() {
               )}
               <button
                 type="button"
-                onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3 | 4 | 5)}
+                onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3)}
                 disabled={!stepOk[step]}
                 className="btn btn-primary"
               >
-                {step === 4 ? 'Review' : 'Continue'} <ArrowRight size={16} weight="bold" />
+                {step === 2 ? 'Review' : 'Continue'} <ArrowRight size={16} weight="bold" />
               </button>
             </>
           )}
 
-          {/* Step 5 actions */}
-          {step === 5 && (
+          {/* Step 3 actions (Review) */}
+          {step === 3 && (
             <>
               <button
                 type="button"

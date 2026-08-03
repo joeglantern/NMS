@@ -31,6 +31,7 @@ export function usePlacesAutocomplete(countryCode = 'ke') {
   const [isLoading, setIsLoading] = useState(false);
   const serviceRef = useRef<google.maps.places.AutocompleteService | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
 
   useEffect(() => {
     if (!mapsReady) return;
@@ -38,6 +39,9 @@ export function usePlacesAutocomplete(countryCode = 'ke') {
       .then(() => {
         serviceRef.current = new google.maps.places.AutocompleteService();
         geocoderRef.current = new google.maps.Geocoder();
+        // PlacesService requires a DOM node or map — a detached div works fine,
+        // it's never attached to the page.
+        placesServiceRef.current = new google.maps.places.PlacesService(document.createElement('div'));
       })
       .catch(() => {});
   }, []);
@@ -72,23 +76,34 @@ export function usePlacesAutocomplete(countryCode = 'ke') {
 
   const getDetails = useCallback((placeId: string): Promise<PlaceDetails> => {
     return new Promise((resolve, reject) => {
-      if (!geocoderRef.current) { reject(new Error('Geocoder not ready')); return; }
-      geocoderRef.current.geocode({ placeId }, (results, status) => {
-        if (status === google.maps.GeocoderStatus.OK && results?.[0]) {
-          const r = results[0];
-          const subCountyCandidates = (r.address_components ?? [])
-            .filter(c => c.types.some(t => SUBCOUNTY_TYPES.has(t)))
-            .map(c => c.long_name);
-          resolve({
-            lat: r.geometry.location.lat(),
-            lng: r.geometry.location.lng(),
-            name: r.formatted_address.split(',').slice(0, 2).join(',').trim(),
-            subCountyCandidates,
-          });
-        } else {
-          reject(new Error('Geocode failed'));
-        }
-      });
+      // NOTE: this intentionally uses PlacesService.getDetails, not
+      // Geocoder.geocode({ placeId }). The Geocoding API's reverse lookup for a
+      // placeId often resolves to the nearest street address rather than the
+      // establishment itself (e.g. picking "Kayole 2 Sub County Hospital" could
+      // silently resolve to "Masimba Road" instead) — Places is the correct,
+      // reliable API for turning an Autocomplete prediction back into the exact
+      // place the user selected.
+      if (!placesServiceRef.current) { reject(new Error('Places service not ready')); return; }
+      placesServiceRef.current.getDetails(
+        { placeId, fields: ['name', 'formatted_address', 'geometry', 'address_components'] },
+        (place, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+            const subCountyCandidates = (place.address_components ?? [])
+              .filter(c => c.types.some(t => SUBCOUNTY_TYPES.has(t)))
+              .map(c => c.long_name);
+            resolve({
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+              // Prefer the place's own name (what the watcher actually clicked);
+              // fall back to the formatted address only if Places has no name.
+              name: place.name || (place.formatted_address ?? '').split(',').slice(0, 2).join(',').trim(),
+              subCountyCandidates,
+            });
+          } else {
+            reject(new Error('Place details lookup failed'));
+          }
+        },
+      );
     });
   }, []);
 
