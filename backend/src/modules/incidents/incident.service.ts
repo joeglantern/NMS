@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { IncidentStatus, Role, TaskStatus, VehicleStatus } from '../../shared/types/index.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { SmsService } from '../sms/sms.service.js';
+import { NATURE_TAXONOMY } from './nature-taxonomy.js';
 
 export class IncidentService {
   private sms: SmsService;
@@ -53,10 +54,18 @@ export class IncidentService {
     const vars = this.caseVars(incident);
     (async () => {
       try {
-        if (incident.isGbvCase) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
-        if (incident.massCasualty) await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'MCI', vars });
+        if (incident.isGbvCase) {
+          // Matching GBV partners + the internal GBV team.
+          await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'GBV', vars });
+          await this.sms.notifyTeamGroupForCase({ incidentId: incident.id, tag: 'GBV', group: 'GBV', vars });
+        }
+        if (incident.massCasualty) {
+          // Matching MCI partners + the surveillance team.
+          await this.sms.notifyPartnersForCase({ incidentId: incident.id, tag: 'MCI', vars });
+          await this.sms.notifyTeamGroupForCase({ incidentId: incident.id, tag: 'MCI', group: 'SURVEILLANCE', vars });
+        }
       } catch (err) {
-        this.app.log.error({ err }, 'partner auto-notify failed');
+        this.app.log.error({ err }, 'case auto-notify failed');
       }
     })();
   }
@@ -111,6 +120,8 @@ export class IncidentService {
       chiefComplaint: string;
       locationName: string;
       subCounty: string;
+      subCountySource?: 'AUTO' | 'MANUAL';
+      clientRef?: string;
       lat?: number;
       lng?: number;
       alertMode?: string;
@@ -120,6 +131,7 @@ export class IncidentService {
       patientAge?: string;
       patientGender?: string;
       patientNhif?: string;
+      patientNationalId?: string;
       patientContact?: string;
       nextOfKin?: string;
       nextOfKinPhone?: string;
@@ -134,6 +146,8 @@ export class IncidentService {
       ambulanceUsed?: string;
       targetFacilityId?: string;
       surveillanceNote?: string;
+      healthcareWorkerName?: string;
+      healthcareWorkerContact?: string;
       isGbvCase?: boolean;
       vitals?: {
         temperature?: string;
@@ -150,15 +164,24 @@ export class IncidentService {
       ? IncidentStatus.DRAFT
       : IncidentStatus.SUBMITTED;
 
+    // Idempotent offline sync (#17): if this device already synced this capture,
+    // return the existing incident instead of creating a duplicate.
+    if (data.clientRef) {
+      const existing = await this.app.prisma.incident.findUnique({ where: { clientRef: data.clientRef } });
+      if (existing) return existing;
+    }
+
     // Create with a unique placeholder, then set the human "Case NNN" from the
     // DB-assigned caseSeq — this is collision-free and always in ascending order.
     const created = await this.app.prisma.incident.create({
       data: {
         caseNumber: `PENDING-${randomUUID()}`,
+        clientRef: data.clientRef,
         status: initialStatus,
         chiefComplaint: data.chiefComplaint,
         locationName: data.locationName,
         subCounty: data.subCounty,
+        subCountySource: data.subCountySource,
         lat: data.lat,
         lng: data.lng,
         alertMode: data.alertMode,
@@ -168,6 +191,7 @@ export class IncidentService {
         patientAge: data.patientAge,
         patientGender: data.patientGender,
         patientNhif: data.patientNhif,
+        patientNationalId: data.patientNationalId,
         patientContact: data.patientContact,
         nextOfKin: data.nextOfKin,
         nextOfKinPhone: data.nextOfKinPhone,
@@ -182,6 +206,8 @@ export class IncidentService {
         ambulanceUsed: data.ambulanceUsed,
         targetFacilityId: data.targetFacilityId,
         surveillanceNote: data.surveillanceNote,
+        healthcareWorkerName: data.healthcareWorkerName,
+        healthcareWorkerContact: data.healthcareWorkerContact,
         isGbvCase: data.isGbvCase ?? false,
         vitals: data.vitals ?? undefined,
         maternityVitals: data.maternityVitals ?? undefined,
@@ -213,7 +239,7 @@ export class IncidentService {
     return incident;
   }
 
-  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: number; limit?: number }) {
+  async getIncidents(filters: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: number; limit?: number }) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -222,6 +248,20 @@ export class IncidentService {
     if (filters.status) whereClause.status = filters.status;
     if (filters.watcherId) whereClause.watcherId = filters.watcherId;
     if (filters.caseNumber) whereClause.caseNumber = { contains: filters.caseNumber, mode: 'insensitive' };
+
+    // Free-text lookup across case number, patient identity and phone numbers —
+    // supports "search by National ID or phone number".
+    const search = filters.search?.trim();
+    if (search) {
+      whereClause.OR = [
+        { caseNumber: { contains: search, mode: 'insensitive' } },
+        { patientName: { contains: search, mode: 'insensitive' } },
+        { patientNationalId: { contains: search, mode: 'insensitive' } },
+        { patientNhif: { contains: search, mode: 'insensitive' } },
+        { patientContact: { contains: search, mode: 'insensitive' } },
+        { nextOfKinPhone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [incidents, total] = await Promise.all([
       this.app.prisma.incident.findMany({
@@ -241,6 +281,34 @@ export class IncidentService {
       data: incidents,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  /**
+   * Flat incident log for the EOC Excel/CSV report. Unpaginated and ordered
+   * newest-first, joined to the target facility so the "Referral Place" column
+   * can prefer the assigned facility name over the free-text place of referral.
+   */
+  async getIncidentsForExport(filters: { status?: IncidentStatus; from?: string; to?: string }) {
+    const whereClause: any = {};
+    if (filters.status) whereClause.status = filters.status;
+
+    // Range is applied against the alert time when present, else creation time.
+    // We filter on createdAt (always set) and treat alertAt as a display value.
+    const range: any = {};
+    if (filters.from) range.gte = new Date(filters.from);
+    if (filters.to) {
+      // Make `to` inclusive of the whole day when a bare date is supplied.
+      const end = new Date(filters.to);
+      if (filters.to.length <= 10) end.setHours(23, 59, 59, 999);
+      range.lte = end;
+    }
+    if (range.gte || range.lte) whereClause.createdAt = range;
+
+    return this.app.prisma.incident.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: { targetFacility: { select: { name: true } } },
+    });
   }
 
   async getIncidentById(id: string) {
@@ -299,6 +367,8 @@ export class IncidentService {
       patientName?: string;
       patientAge?: string;
       patientGender?: string;
+      patientNhif?: string;
+      patientNationalId?: string;
       patientContact?: string;
       nextOfKin?: string;
       nextOfKinPhone?: string;
@@ -307,6 +377,8 @@ export class IncidentService {
       placeOfReferral?: string;
       targetFacilityId?: string;
       hospitalLevelRequired?: number;
+      healthcareWorkerName?: string;
+      healthcareWorkerContact?: string;
       preHospitalManagement?: string;
       partnerNotes?: string;
       vitals?: Record<string, unknown>;
@@ -330,8 +402,10 @@ export class IncidentService {
       'chiefComplaint', 'locationName', 'subCounty', 'massCasualty',
       'massCasualtyCount', 'watcherComments', 'dispatcherComments',
       'dispatcherChallenges', 'patientName', 'patientAge', 'patientGender',
+      'patientNhif', 'patientNationalId',
       'patientContact', 'nextOfKin', 'nextOfKinPhone', 'alertNature',
       'alertNatureDetail', 'placeOfReferral', 'targetFacilityId', 'hospitalLevelRequired',
+      'healthcareWorkerName', 'healthcareWorkerContact',
       'preHospitalManagement', 'partnerNotes', 'pcrUrl', 'vitals', 'maternityVitals',
     ] as const;
 
@@ -684,43 +758,48 @@ export class IncidentService {
 
   // ── Nature options (user-extensible taxonomy) ─────────────────────────────
 
-  private readonly SEED_NATURES: Array<{ nature: string; details: string[] }> = [
-    { nature: 'Trauma',      details: ['Road Traffic Accident', 'Fall', 'Assault/Violence', 'Industrial Accident', 'Sports Injury', 'Other'] },
-    { nature: 'Medical',     details: ['Cardiac Arrest', 'Stroke', 'Seizure', 'Respiratory Distress', 'Diabetic Emergency', 'Other'] },
-    { nature: 'Obstetric',   details: ['Labour', 'Post-partum Haemorrhage', 'Eclampsia', 'Miscarriage', 'Other'] },
-    { nature: 'Pediatric',   details: ['Febrile Convulsion', 'Neonatal Emergency', 'Respiratory Distress', 'Trauma', 'Other'] },
-    { nature: 'Psychiatric', details: ['Attempted Suicide', 'Acute Psychosis', 'Aggression', 'Other'] },
-    { nature: 'Burns',       details: ['Chemical', 'Electrical', 'Thermal', 'Other'] },
-    { nature: 'Poisoning',   details: ['Drug Overdose', 'Chemical Ingestion', 'Snake Bite', 'Other'] },
-    { nature: 'Other',       details: ['Other'] },
-  ];
+  // The nature → specific-nature taxonomy lives in ./nature-taxonomy.ts so the reseed
+  // script and the auto-seed below share one source of truth.
+  private readonly SEED_NATURES = NATURE_TAXONOMY;
+
+  /** Flatten the taxonomy into ordered rows, assigning an incrementing sortOrder. */
+  private buildSeedRows(): Array<{ nature: string; detail: string | null; sortOrder: number }> {
+    const rows: Array<{ nature: string; detail: string | null; sortOrder: number }> = [];
+    let order = 0;
+    for (const { nature, details } of this.SEED_NATURES) {
+      rows.push({ nature, detail: null, sortOrder: order++ });
+      for (const detail of details) rows.push({ nature, detail, sortOrder: order++ });
+    }
+    return rows;
+  }
 
   async getNatureOptions(): Promise<Array<{ nature: string; details: string[] }>> {
     const rows = await this.app.prisma.incidentNatureOption.findMany({
-      orderBy: [{ nature: 'asc' }, { detail: 'asc' }],
+      orderBy: [{ sortOrder: 'asc' }, { nature: 'asc' }, { detail: 'asc' }],
     });
 
     // Auto-seed defaults on first use
     if (rows.length === 0) {
-      const seeds = this.SEED_NATURES.flatMap(({ nature, details }) => [
-        { nature, detail: null },
-        ...details.map(detail => ({ nature, detail })),
-      ]);
-      await this.app.prisma.incidentNatureOption.createMany({ data: seeds, skipDuplicates: true });
-      return this.SEED_NATURES;
+      await this.app.prisma.incidentNatureOption.createMany({
+        data: this.buildSeedRows(),
+        skipDuplicates: true,
+      });
+      return this.SEED_NATURES.map(({ nature, details }) => ({ nature, details }));
     }
 
-    // Group into { nature, details[] }
+    // Group into { nature, details[] } preserving the sortOrder-driven row order.
     const map = new Map<string, string[]>();
     for (const row of rows) {
-      if (!row.detail) {
-        if (!map.has(row.nature)) map.set(row.nature, []);
-      } else {
-        if (!map.has(row.nature)) map.set(row.nature, []);
-        map.get(row.nature)!.push(row.detail);
-      }
+      if (!map.has(row.nature)) map.set(row.nature, []);
+      if (row.detail) map.get(row.nature)!.push(row.detail);
     }
     return Array.from(map.entries()).map(([nature, details]) => ({ nature, details }));
+  }
+
+  /** Next sortOrder for a freshly added option — appends after everything existing. */
+  private async nextNatureSortOrder(): Promise<number> {
+    const max = await this.app.prisma.incidentNatureOption.aggregate({ _max: { sortOrder: true } });
+    return (max._max.sortOrder ?? -1) + 1;
   }
 
   async createNatureOption(nature: string, detail?: string): Promise<void> {
@@ -730,14 +809,18 @@ export class IncidentService {
       where: { nature, detail: null },
     });
     if (!topExists) {
-      await this.app.prisma.incidentNatureOption.create({ data: { nature, detail: null } });
+      await this.app.prisma.incidentNatureOption.create({
+        data: { nature, detail: null, sortOrder: await this.nextNatureSortOrder() },
+      });
     }
     if (detail) {
       const detailExists = await this.app.prisma.incidentNatureOption.findFirst({
         where: { nature, detail },
       });
       if (!detailExists) {
-        await this.app.prisma.incidentNatureOption.create({ data: { nature, detail } });
+        await this.app.prisma.incidentNatureOption.create({
+          data: { nature, detail, sortOrder: await this.nextNatureSortOrder() },
+        });
       }
     }
   }

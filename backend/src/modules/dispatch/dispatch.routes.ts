@@ -26,6 +26,19 @@ export const dispatchRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   );
 
   /**
+   * GET /dispatch/fleet-status
+   * Real operational fleet breakdown (ready / dispatched / on-scene / returning / offline).
+   */
+  app.get(
+    '/fleet-status',
+    { preValidation: [requireRole(assignRoles)] },
+    async (_request, reply) => {
+      const status = await dispatchService.getFleetStatus();
+      return reply.send({ ok: true, data: status });
+    }
+  );
+
+  /**
    * POST /dispatch/assign/:id
    * Dispatcher claims an incident and moves it to DISPATCH_HANDLING.
    */

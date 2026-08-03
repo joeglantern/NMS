@@ -21,14 +21,15 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       imei: string;
       lat: number;
       lng: number;
+      locationName?: string;
     };
   }>(
     '/location',
     // In reality, this might be a specific DEVICE role or DRIVER, but we'll allow DRIVER/DISPATCHER/ADMIN here
     { preValidation: [requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
     async (request, reply) => {
-      const { imei, lat, lng } = request.body;
-      const result = await fleetService.updateVehicleLocation(imei, lat, lng);
+      const { imei, lat, lng, locationName } = request.body;
+      const result = await fleetService.updateVehicleLocation(imei, lat, lng, locationName);
       return reply.send({ ok: true, data: result });
     }
   );
@@ -97,13 +98,119 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         throw new BadRequestError('Valid "lat" and "lng" fields are required (send them before the file part)');
       }
+      const locationNameRaw = file.fields?.locationName?.value;
+      const locationName =
+        typeof locationNameRaw === 'string' && locationNameRaw.trim()
+          ? locationNameRaw.trim()
+          : null;
 
       const vehicle = await fleetService.checkInToCrew(
         request.params.vehicleId,
         request.user.userId,
         request.user.role,
-        { lat, lng },
+        { lat, lng, locationName },
         { filename: file.filename, mimetype: file.mimetype, file: file.file },
+      );
+      return reply.send({ ok: true, data: vehicle });
+    }
+  );
+
+  // ── Standby deployments (fleet standby reporting) ────────────────────────────
+
+  /** GET /fleet/standby?active=true|false&vehicleId=&from=&to= — standby report. */
+  app.get<{ Querystring: { active?: string; vehicleId?: string; from?: string; to?: string } }>(
+    '/standby',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const active = request.query.active === 'true' ? true : request.query.active === 'false' ? false : undefined;
+      const data = await fleetService.listStandby({
+        active,
+        vehicleId: request.query.vehicleId,
+        from: request.query.from,
+        to: request.query.to,
+      });
+      return reply.send({ ok: true, data });
+    }
+  );
+
+  /** POST /fleet/standby — place a vehicle on standby. */
+  app.post<{ Body: { vehicleId: string; title: string; location?: string; lat?: number; lng?: number; notes?: string; startedAt?: string } }>(
+    '/standby',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      if (!request.body?.vehicleId) throw new BadRequestError('vehicleId is required');
+      if (!request.body?.title?.trim()) throw new BadRequestError('A standby title/reason is required');
+      const data = await fleetService.startStandby(request.user.userId, request.body);
+      return reply.status(201).send({ ok: true, data });
+    }
+  );
+
+  /** PATCH /fleet/standby/:id/end — end an active standby. */
+  app.patch<{ Params: { id: string }; Body: { endedAt?: string } }>(
+    '/standby/:id/end',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const data = await fleetService.endStandby(request.params.id, request.body?.endedAt);
+      return reply.send({ ok: true, data });
+    }
+  );
+
+  /**
+   * GET /fleet/partner-ambulances
+   * Active partner ambulances (Red Cross, Fire Brigade, etc.) as reference capacity
+   * for dispatchers. These have no trackers, so this is contact/vehicle info only.
+   */
+  app.get(
+    '/partner-ambulances',
+    { preValidation: [requireRole([Role.WATCHER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (_request, reply) => {
+      const data = await fleetService.listPartnerAmbulances();
+      return reply.send({ ok: true, data });
+    }
+  );
+
+  /**
+   * GET /fleet/crew-members
+   * EMT / nurse users in the driver's agency, for the crew-assignment picker.
+   */
+  app.get(
+    '/crew-members',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const crew = await fleetService.listAssignableCrew(request.user.agencyId);
+      return reply.send({ ok: true, data: crew });
+    }
+  );
+
+  /**
+   * GET /fleet/available-for-handover
+   * READY agency vehicles with a checked-in driver (for handover picker).
+   */
+  app.get<{ Querystring: { excludeVehicleId?: string } }>(
+    '/available-for-handover',
+    { preValidation: [requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const vehicles = await fleetService.listAvailableVehiclesForHandover(
+        request.user.agencyId,
+        request.query.excludeVehicleId,
+      );
+      return reply.send({ ok: true, data: vehicles });
+    }
+  );
+
+  /**
+   * POST /fleet/:vehicleId/crew
+   * Driver assigns/clears the EMT and/or nurse on their vehicle.
+   * Body: { emtId?: string | null; nurseId?: string | null } (omit a key to leave unchanged)
+   */
+  app.post<{ Params: { vehicleId: string }; Body: { emtId?: string | null; nurseId?: string | null } }>(
+    '/:vehicleId/crew',
+    { preValidation: [requireRole([Role.DRIVER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const vehicle = await fleetService.assignCrew(
+        request.params.vehicleId,
+        { userId: request.user.userId, role: request.user.role },
+        request.body ?? {},
       );
       return reply.send({ ok: true, data: vehicle });
     }

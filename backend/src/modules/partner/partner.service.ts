@@ -45,6 +45,22 @@ export class PartnerService {
   }
 
   /**
+   * GBV cases forwarded to this partner (#15). Same GBV dashboard view as the EOC,
+   * but scoped to the partner's own assigned cases so they never see other cases.
+   */
+  async getForwardedGbvCases(agencyId: string) {
+    return this.app.prisma.incident.findMany({
+      where: { assignedAgencyId: agencyId, isGbvCase: true },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        watcher: { select: { id: true, name: true, phone: true } },
+        dispatcher: { select: { id: true, name: true, phone: true } },
+        gbvReport: true,
+      },
+    });
+  }
+
+  /**
    * Returns a single forwarded incident — validates it belongs to the partner.
    */
   async getForwardedIncidentById(incidentId: string, agencyId: string) {

@@ -75,17 +75,86 @@ export const taskRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
    * POST /tasks/:id/patient-data
    * Crew logs patient vitals and pre-hospital management notes.
    */
-  app.post<{ Params: { id: string }; Body: { preHospitalManagement: string; dispatcherChallenges?: string } }>(
+  app.post<{ Params: { id: string }; Body: { preHospitalManagement: string; dispatcherChallenges?: string; handoverVitals?: Record<string, unknown> } }>(
     '/:id/patient-data',
     { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE])] },
     async (request, reply) => {
-      const { preHospitalManagement, dispatcherChallenges } = request.body;
+      const { preHospitalManagement, dispatcherChallenges, handoverVitals } = request.body;
       if (!preHospitalManagement) throw new BadRequestError('preHospitalManagement is required');
 
       const result = await taskService.updatePatientData(
         request.params.id,
         request.user.userId,
-        { preHospitalManagement, dispatcherChallenges }
+        { preHospitalManagement, dispatcherChallenges, handoverVitals }
+      );
+      return reply.send({ ok: true, data: result });
+    }
+  );
+
+  /**
+   * POST /tasks/:id/stops
+   * Add a destination stop during a task (e.g. re-route to another facility).
+   * Crew (mobile) or dispatcher. Emits task:stop-added for realtime + push.
+   */
+  app.post<{ Params: { id: string }; Body: { name: string; facilityId?: string; lat?: number; lng?: number; note?: string } }>(
+    '/:id/stops',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      if (!request.body?.name?.trim()) throw new BadRequestError('A stop name is required');
+      const stop = await taskService.addStop(
+        request.params.id,
+        { userId: request.user.userId, role: request.user.role },
+        request.body,
+      );
+      return reply.status(201).send({ ok: true, data: stop });
+    }
+  );
+
+  /** GET /tasks/:id/stops — list stops in visit order. */
+  app.get<{ Params: { id: string } }>(
+    '/:id/stops',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const stops = await taskService.listStops(request.params.id);
+      return reply.send({ ok: true, data: stops });
+    }
+  );
+
+  /** PATCH /tasks/:id/stops/:stopId/arrived — mark a stop reached. */
+  app.patch<{ Params: { id: string; stopId: string } }>(
+    '/:id/stops/:stopId/arrived',
+    { preValidation: [requireRole([Role.DRIVER, Role.EMT, Role.NURSE, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const stop = await taskService.markStopArrived(
+        request.params.id,
+        request.params.stopId,
+        { userId: request.user.userId, role: request.user.role },
+      );
+      return reply.send({ ok: true, data: stop });
+    }
+  );
+
+  /**
+   * POST /tasks/:id/reassign
+   * Handover / case termination with reassignment. Requires a reason. Optional
+   * newVehicleId or autoAssign=true picks a replacement crew. Checks out the
+   * original driver. Drivers may handover their own task; dispatchers any task.
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { reason: string; newVehicleId?: string; autoAssign?: boolean };
+  }>(
+    '/:id/reassign',
+    {
+      preValidation: [
+        requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]),
+      ],
+    },
+    async (request, reply) => {
+      const result = await taskService.reassignTask(
+        request.params.id,
+        { userId: request.user.userId, role: request.user.role, agencyId: request.user.agencyId },
+        request.body ?? { reason: '' },
       );
       return reply.send({ ok: true, data: result });
     }

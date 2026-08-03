@@ -30,6 +30,15 @@ export const partnerRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
   );
 
   /**
+   * GET /partner/gbv-cases
+   * GBV cases forwarded to this partner (same GBV dashboard view, partner-scoped).
+   */
+  app.get('/gbv-cases', async (request, reply) => {
+    const cases = await partnerService.getForwardedGbvCases(request.user.agencyId);
+    return reply.send({ ok: true, data: cases });
+  });
+
+  /**
    * GET /partner/incidents/:id
    */
   app.get<{ Params: { id: string } }>(

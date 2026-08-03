@@ -14,7 +14,7 @@ const createUserSchema = z.object({
   passwordRaw: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2),
   role: z.nativeEnum(Role),
-  agencyId: z.string().uuid(),
+  agencyId: z.string().min(1, 'Agency required'),
   phone: z.string().optional(),
 });
 
@@ -23,13 +23,13 @@ const updateUserSchema = z.object({
   phone: z.string().optional(),
   role: z.nativeEnum(Role).optional(),
   isActive: z.boolean().optional(),
-  agencyId: z.string().uuid().optional(),
+  agencyId: z.string().min(1).optional(),
 });
 
 const createVehicleSchema = z.object({
   registrationNumber: z.string().min(3, 'Registration number required'),
   imei: z.string().min(3, 'IMEI required'),
-  agencyId: z.string().uuid(),
+  agencyId: z.string().min(1, 'Agency required'),
 });
 
 const updateVehicleSchema = z.object({
@@ -49,6 +49,18 @@ const updateAgencySchema = z.object({
   name: z.string().min(2).optional(),
   location: z.string().optional(),
   contactInfo: z.record(z.string(), z.unknown()).optional(),
+  isActive: z.boolean().optional(),
+});
+
+const partnerAmbulanceSchema = z.object({
+  agencyId: z.string().min(1).optional().nullable(),
+  registrationNumber: z.string().min(2, 'Registration number required'),
+  vehicleType: z.string().optional(),
+  contactName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  baseLocation: z.string().optional(),
+  capacity: z.string().optional(),
+  notes: z.string().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -202,14 +214,52 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { nature, detail: detail ?? null },
     });
     if (existing) return reply.send({ ok: true, data: existing });
+    // Append after existing options so admin-added entries don't jump to the top.
+    const max = await app.prisma.incidentNatureOption.aggregate({ _max: { sortOrder: true } });
     const option = await app.prisma.incidentNatureOption.create({
-      data: { nature, detail: detail ?? null },
+      data: { nature, detail: detail ?? null, sortOrder: (max._max.sortOrder ?? -1) + 1 },
     });
     return reply.status(201).send({ ok: true, data: option });
   });
 
   app.delete<{ Params: { id: string } }>('/nature-options/:id', async (request, reply) => {
     await app.prisma.incidentNatureOption.delete({ where: { id: request.params.id } });
+    return reply.send({ ok: true });
+  });
+
+  // ── Partner Ambulances (reference info only — no GPS trackers) ────────────────
+
+  app.get('/partner-ambulances', async (_request, reply) => {
+    const data = await app.prisma.partnerAmbulance.findMany({
+      orderBy: [{ isActive: 'desc' }, { registrationNumber: 'asc' }],
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.send({ ok: true, data });
+  });
+
+  app.post<{ Body: unknown }>('/partner-ambulances', async (request, reply) => {
+    const parsed = partnerAmbulanceSchema.safeParse(request.body);
+    if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+    const data = await app.prisma.partnerAmbulance.create({
+      data: parsed.data,
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.status(201).send({ ok: true, data });
+  });
+
+  app.patch<{ Params: { id: string }; Body: unknown }>('/partner-ambulances/:id', async (request, reply) => {
+    const parsed = partnerAmbulanceSchema.partial().safeParse(request.body);
+    if (!parsed.success) throw new BadRequestError(parsed.error.issues[0].message);
+    const data = await app.prisma.partnerAmbulance.update({
+      where: { id: request.params.id },
+      data: parsed.data,
+      include: { agency: { select: { id: true, name: true } } },
+    });
+    return reply.send({ ok: true, data });
+  });
+
+  app.delete<{ Params: { id: string } }>('/partner-ambulances/:id', async (request, reply) => {
+    await app.prisma.partnerAmbulance.delete({ where: { id: request.params.id } });
     return reply.send({ ok: true });
   });
 

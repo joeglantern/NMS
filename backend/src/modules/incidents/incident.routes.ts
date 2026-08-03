@@ -9,6 +9,7 @@ const createIncidentSchema = z.object({
   chiefComplaint: z.string().min(3, 'Chief complaint is required'),
   locationName: z.string().min(2, 'Location name is required'),
   subCounty: z.string().min(2, 'Sub-county is required'),
+  subCountySource: z.enum(['AUTO', 'MANUAL']).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   alertMode: z.string().optional(),
@@ -18,6 +19,7 @@ const createIncidentSchema = z.object({
   patientAge: z.string().optional(),
   patientGender: z.string().optional(),
   patientNhif: z.string().optional(),
+  patientNationalId: z.string().optional(),
   patientContact: z.string().optional(),
   nextOfKin: z.string().optional(),
   nextOfKinPhone: z.string().optional(),
@@ -32,7 +34,10 @@ const createIncidentSchema = z.object({
   ambulanceUsed: z.string().optional(),
   targetFacilityId: z.string().optional(),
   surveillanceNote: z.string().optional(),
+  healthcareWorkerName: z.string().optional(),
+  healthcareWorkerContact: z.string().optional(),
   isGbvCase: z.boolean().optional(),
+  clientRef: z.string().min(8).max(100).optional(),
   vitals: z.object({
   temperature: z.string().optional(),
   pulseRate: z.string().optional(),
@@ -56,6 +61,8 @@ const updateIncidentSchema = z.object({
   patientName: z.string().optional(),
   patientAge: z.string().optional(),
   patientGender: z.string().optional(),
+  patientNhif: z.string().optional(),
+  patientNationalId: z.string().optional(),
   patientContact: z.string().optional(),
   nextOfKin: z.string().optional(),
   nextOfKinPhone: z.string().optional(),
@@ -64,6 +71,8 @@ const updateIncidentSchema = z.object({
   placeOfReferral: z.string().optional(),
   targetFacilityId: z.string().optional().or(z.literal('')),
   hospitalLevelRequired: z.number().int().min(1).max(6).optional(),
+  healthcareWorkerName: z.string().optional(),
+  healthcareWorkerContact: z.string().optional(),
   preHospitalManagement: z.string().optional(),
   partnerNotes: z.string().optional(),
   vitals: z.object({
@@ -116,10 +125,15 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   /**
    * GET /incidents/facilities — list active facilities (accessible to all authenticated roles)
    */
-  app.get('/facilities', async (_request, reply) => {
+  app.get<{ Querystring: { subCounty?: string } }>('/facilities', async (request, reply) => {
+    const subCounty = request.query.subCounty?.trim();
     const facilities = await app.prisma.facility.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, type: true, subCounty: true, kephLevel: true },
+      where: {
+        isActive: true,
+        // Filter to the incident's political/administrative region when provided.
+        ...(subCounty ? { subCounty: { equals: subCounty, mode: 'insensitive' } } : {}),
+      },
+      select: { id: true, name: true, type: true, subCounty: true, kephLevel: true, lat: true, lng: true },
       orderBy: { name: 'asc' },
     });
     return reply.send({ ok: true, data: facilities });
@@ -128,7 +142,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   /**
    * GET /incidents
    */
-  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; page?: string; limit?: string } }>(
+  app.get<{ Querystring: { status?: IncidentStatus; watcherId?: string; caseNumber?: string; search?: string; page?: string; limit?: string } }>(
     '/',
     async (request, reply) => {
       const page = request.query.page ? parseInt(request.query.page, 10) : 1;
@@ -138,10 +152,67 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         status: request.query.status,
         watcherId: request.query.watcherId,
         caseNumber: request.query.caseNumber,
+        search: request.query.search,
         page,
         limit,
       });
       return reply.send({ ok: true, ...result });
+    }
+  );
+
+  /**
+   * GET /incidents/export — EOC incident report as CSV (opens directly in Excel).
+   * One row per alert, newest first, matching the legacy "EOC System" export columns.
+   * Restricted to dispatch/command roles; supports optional status + date range.
+   */
+  app.get<{ Querystring: { status?: IncidentStatus; from?: string; to?: string } }>(
+    '/export',
+    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const incidents = await incidentService.getIncidentsForExport({
+        status: request.query.status,
+        from: request.query.from,
+        to: request.query.to,
+      });
+
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const asDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const asTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      // RFC-4180 escaping: wrap in quotes and double any embedded quotes.
+      const cell = (v: unknown) => {
+        const s = v == null ? '' : String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      const headers = [
+        'No', 'Date', 'Alert Time', 'Nature of Alert', 'Incidence Location',
+        'Referral Place', 'Ambulance used', 'Case Outcome',
+      ];
+
+      const lines = [headers.join(',')];
+      incidents.forEach((inc, i) => {
+        const when = inc.alertAt ?? inc.createdAt;
+        const nature = [inc.alertNature, inc.alertNatureDetail].filter(Boolean).join(' — ');
+        const referral = inc.targetFacility?.name ?? inc.placeOfReferral ?? '';
+        lines.push([
+          i + 1,
+          asDate(new Date(when)),
+          asTime(new Date(when)),
+          nature,
+          inc.locationName,
+          referral,
+          inc.ambulanceUsed ?? '',
+          inc.closureReason ?? '',
+        ].map(cell).join(','));
+      });
+
+      // Prepend a UTF-8 BOM so Excel renders accented/special characters correctly.
+      const csv = '﻿' + lines.join('\r\n');
+      const stamp = asDate(new Date()).replace(/\//g, '-');
+      return reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="EOC_Incident_Report_${stamp}.csv"`)
+        .send(csv);
     }
   );
 

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Role } from '../../shared/types/index.js';
 import { AdvantaClient } from './advanta.client.js';
+import { WhatsAppClient } from './whatsapp.client.js';
 
 export interface RecipientSpec {
   numbers?: string[];
@@ -45,13 +46,19 @@ export function normalizeMsisdn(raw: string): string | null {
 
 export class SmsService {
   private advanta: AdvantaClient;
+  private whatsapp: WhatsAppClient;
 
   constructor(private app: FastifyInstance) {
     this.advanta = new AdvantaClient(app);
+    this.whatsapp = new WhatsAppClient(app);
   }
 
   get configured(): boolean {
     return this.advanta.configured;
+  }
+
+  get whatsappConfigured(): boolean {
+    return this.whatsapp.configured;
   }
 
   // ── Templates ──────────────────────────────────────────────────────────────
@@ -126,30 +133,53 @@ export class SmsService {
   }
 
   // ── Sending ──────────────────────────────────────────────────────────────────
-  /** Sends to an already-resolved list, writing one SmsMessage log row per recipient. */
+  /**
+   * Sends to an already-resolved list, writing one log row per recipient per channel.
+   * SMS is always attempted; WhatsApp is additionally attempted when configured, so
+   * partners/teams are reached on both channels (requested change #16).
+   */
   async sendToRecipients(recipients: string[], message: string, meta: SendMeta) {
     const category = meta.category ?? 'MANUAL';
     let sent = 0;
     let failed = 0;
     for (const mobile of recipients) {
+      // SMS
       const result = await this.advanta.sendOne(mobile, message);
       if (result.ok) sent++;
       else failed++;
-      await this.app.prisma.smsMessage.create({
-        data: {
-          recipient: mobile,
-          message,
-          category,
-          status: result.ok ? 'SENT' : 'FAILED',
-          providerMessageId: result.providerMessageId ?? null,
-          error: result.ok ? null : result.error ?? 'Unknown error',
-          groupLabel: meta.groupLabel ?? null,
-          incidentId: meta.incidentId ?? null,
-          sentById: meta.sentById ?? null,
-        },
-      });
+      await this.logMessage('SMS', mobile, message, category, result, meta);
+
+      // WhatsApp (best-effort; never blocks SMS, only runs when configured)
+      if (this.whatsapp.configured) {
+        const wa = await this.whatsapp.sendTemplate(mobile, message);
+        await this.logMessage('WHATSAPP', mobile, message, category, wa, meta);
+      }
     }
     return { total: recipients.length, sent, failed };
+  }
+
+  private logMessage(
+    channel: 'SMS' | 'WHATSAPP',
+    recipient: string,
+    message: string,
+    category: string,
+    result: { ok: boolean; providerMessageId?: string; error?: string },
+    meta: SendMeta,
+  ) {
+    return this.app.prisma.smsMessage.create({
+      data: {
+        recipient,
+        message,
+        channel,
+        category,
+        status: result.ok ? 'SENT' : 'FAILED',
+        providerMessageId: result.providerMessageId ?? null,
+        error: result.ok ? null : result.error ?? 'Unknown error',
+        groupLabel: meta.groupLabel ?? null,
+        incidentId: meta.incidentId ?? null,
+        sentById: meta.sentById ?? null,
+      },
+    });
   }
 
   async send(spec: RecipientSpec, message: string, meta: SendMeta) {
@@ -181,6 +211,38 @@ export class SmsService {
     return this.sendToRecipients(recipients, message, {
       category: 'AUTO_PARTNER',
       groupLabel: opts.tag,
+      incidentId: opts.incidentId,
+    });
+  }
+
+  /**
+   * SMS an internal team contact group for a GBV/MCI case (e.g. the GBV team or
+   * the surveillance team). Deduped per incident+tag+group, separate from the
+   * partner send so both can fire for the same case.
+   */
+  async notifyTeamGroupForCase(opts: {
+    incidentId: string;
+    tag: 'GBV' | 'MCI';
+    group: string;
+    vars: Record<string, string | number | undefined>;
+  }) {
+    const label = `${opts.tag}:${opts.group}`;
+    const existing = await this.app.prisma.smsMessage.findFirst({
+      where: { incidentId: opts.incidentId, category: 'AUTO_TEAM', groupLabel: label },
+    });
+    if (existing) return { total: 0, sent: 0, failed: 0, skipped: true };
+
+    const templates = await this.getTemplates();
+    const tpl = templates.find((t) => t.key === opts.tag);
+    if (!tpl) return { total: 0, sent: 0, failed: 0 };
+
+    const message = this.renderTemplate(tpl.body, opts.vars);
+    const recipients = await this.resolveRecipients({ contactGroups: [opts.group] });
+    if (!recipients.length) return { total: 0, sent: 0, failed: 0 };
+
+    return this.sendToRecipients(recipients, message, {
+      category: 'AUTO_TEAM',
+      groupLabel: label,
       incidentId: opts.incidentId,
     });
   }
