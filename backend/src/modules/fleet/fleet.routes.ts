@@ -3,6 +3,7 @@ import { FleetService } from './fleet.service.js';
 import { requireRole } from '../../shared/guards/requireRole.js';
 import { Role } from '../../shared/types/index.js';
 import { BadRequestError } from '../../shared/errors/AppError.js';
+import { TrackingService } from '../tracking/tracking.service.js';
 import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -10,6 +11,25 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   const fleetService = new FleetService(app);
 
   app.addHook('preValidation', app.authenticate);
+
+  /**
+   * GET /fleet/tracking/raw-sample
+   * Diagnostic — dumps every field Uffizio actually sends per vehicle, and
+   * flags any that look fuel/odometer related. Use this to establish whether
+   * fuel telemetry is available before building anything that depends on it.
+   *
+   * Note Uffizio rate-limits to one call per minute, so if the regular poller
+   * has just run you may need to wait ~60s and retry.
+   */
+  app.get(
+    '/tracking/raw-sample',
+    { preValidation: [requireRole([Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (_request, reply) => {
+      const tracking = new TrackingService(app);
+      const data = await tracking.fetchRawSample();
+      return reply.send({ ok: true, data });
+    }
+  );
 
   /**
    * POST /fleet/location

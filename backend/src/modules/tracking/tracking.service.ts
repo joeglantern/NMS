@@ -58,7 +58,9 @@ export class TrackingService {
 
   // ── Token management ──────────────────────────────────────────────────────
 
-  private async getAuthCode(): Promise<string> {
+  /** Public so the fuel module can reuse the same auth code — Uffizio rate-limits
+   *  aggressively, so we deliberately share one token rather than minting two. */
+  async getAuthCode(): Promise<string> {
     if (this.authCode && Date.now() < this.authCodeExpiry) {
       return this.authCode;
     }
@@ -92,6 +94,71 @@ export class TrackingService {
   }
 
   // ── Live data fetch ───────────────────────────────────────────────────────
+
+  /**
+   * Diagnostic: returns the COMPLETE raw field set Uffizio sends for each
+   * vehicle, plus a guess at which fields look fuel-related.
+   *
+   * Exists because whether fuel data is available at all is a hardware question,
+   * not a software one — a plain GPS tracker reports position/ignition/speed and
+   * nothing else, while fuel level needs either a fuel-level sensor wired to the
+   * unit or a CAN-bus/OBD link to the vehicle's own gauge. The regular poll only
+   * logs the first 800 characters once at startup, which isn't enough to tell.
+   */
+  async fetchRawSample(): Promise<{
+    vehicleCount: number;
+    fieldNames: string[];
+    possibleFuelFields: string[];
+    sample: any;
+  }> {
+    const code = await this.getAuthCode();
+    const url = `${this.baseUrl}/webservice?token=getTokenBaseLiveData&ProjectId=${this.projectId}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'auth-code': code, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_names: this.companyName,
+        vehicle_nos: '',
+        imei_nos: '',
+        format: 'json',
+      }),
+    });
+
+    if (res.status === 401) {
+      this.authCode = null;
+      throw new Error('Uffizio: auth code rejected (401) — try again, it will refresh');
+    }
+    if (!res.ok) throw new Error(`Uffizio live data failed: HTTP ${res.status}`);
+
+    const body: any = await res.json();
+
+    // Uffizio returns its rate-limit complaint as a 200 with an error body.
+    if (body?.root?.error) {
+      throw new Error(`Uffizio responded: ${body.root.error}`);
+    }
+
+    const rawVehicles = this.extractVehicleArray(body);
+    if (!rawVehicles.length) {
+      return { vehicleCount: 0, fieldNames: [], possibleFuelFields: [], sample: body };
+    }
+
+    // Union of keys across all vehicles — some units report more than others.
+    const fieldNames = Array.from(
+      new Set(rawVehicles.flatMap(v => Object.keys(v ?? {})))
+    ).sort();
+
+    const possibleFuelFields = fieldNames.filter(k =>
+      /fuel|diesel|petrol|litre|liter|tank|consum|dte|odo|mileage/i.test(k)
+    );
+
+    return {
+      vehicleCount: rawVehicles.length,
+      fieldNames,
+      possibleFuelFields,
+      sample: rawVehicles[0],
+    };
+  }
 
   async fetchAndUpdateLocations(): Promise<void> {
     const code = await this.getAuthCode();
