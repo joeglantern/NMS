@@ -20,6 +20,9 @@ import { handoffRoutes } from './modules/handoff/handoff.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 import { gbvRoutes } from './modules/gbv/gbv.routes.js';
 import { smsRoutes } from './modules/sms/sms.routes.js';
+import { presenceRoutes } from './modules/presence/presence.routes.js';
+import { publicRoutes } from './modules/public/public.routes.js';
+import { fuelRoutes } from './modules/fuel/fuel.routes.js';
 import { TrackingService } from './modules/tracking/tracking.service.js';
 
 /**
@@ -96,9 +99,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(notificationsRoutes, { prefix: '/notifications' });
   app.register(gbvRoutes, { prefix: '/gbv' });
   app.register(smsRoutes, { prefix: '/sms' });
+  app.register(presenceRoutes, { prefix: '/presence' });
+  app.register(publicRoutes, { prefix: '/public' });
+  app.register(fuelRoutes, { prefix: '/fuel' });
 
   // ── GPS Tracking (Uffizio/Kimii) ──────────────────────────────────────────
   const trackingService = new TrackingService(app);
+  // Shared so FuelService can reuse the same Uffizio auth code.
+  app.decorate('tracking', trackingService);
   app.addHook('onReady', async () => { trackingService.start(); });
   app.addHook('onClose', async () => { trackingService.stop(); });
 

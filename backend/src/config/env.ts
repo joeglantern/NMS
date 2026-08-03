@@ -41,6 +41,13 @@ const schema = {
       type: 'string',
       default: '7d',
     },
+    // Shared secret for the read-only call-centre wallboard display, so a TV in
+    // the ops room can render it without anyone logging in. Leave EMPTY to keep
+    // the public display disabled entirely (the default).
+    WALLBOARD_TOKEN: {
+      type: 'string',
+      default: '',
+    },
     REDIS_URL: {
       type: 'string',
       default: 'redis://localhost:6379',
@@ -147,6 +154,7 @@ declare module 'fastify' {
       DATABASE_URL: string;
       JWT_SECRET: string;
       JWT_EXPIRES_IN: string;
+      WALLBOARD_TOKEN: string;
       REDIS_URL: string;
       UFFIZIO_BASE_URL: string;
       UFFIZIO_USERNAME: string;

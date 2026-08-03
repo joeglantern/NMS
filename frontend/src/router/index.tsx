@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
 import RoleGuard from '../components/shared/RoleGuard';
 import AppShell from '../components/layout/AppShell';
 import LoginPage from '../pages/auth/LoginPage';
@@ -7,9 +7,11 @@ import LoginPage from '../pages/auth/LoginPage';
 // Heavy authenticated pages are code-split so they load on demand (keeps the
 // initial bundle small). The Suspense boundary lives in AppShell.
 const DashboardPage = lazy(() => import('../pages/dispatcher/DashboardPage'));
+const WallboardPage = lazy(() => import('../pages/dispatcher/WallboardPage'));
 const QueuePage = lazy(() => import('../pages/dispatcher/QueuePage'));
 const IncidentDetailPage = lazy(() => import('../pages/dispatcher/IncidentDetailPage'));
 const FleetPage = lazy(() => import('../pages/dispatcher/FleetPage'));
+const FuelPage = lazy(() => import('../pages/dispatcher/FuelPage'));
 const CallLogPage = lazy(() => import('../pages/dispatcher/CallLogPage'));
 const NewIncidentWizard = lazy(() => import('../pages/watcher/NewIncidentWizard'));
 const WatcherDashboardPage = lazy(() => import('../pages/watcher/WatcherDashboardPage'));
@@ -26,6 +28,8 @@ const StandbyPage = lazy(() => import('../pages/dispatcher/StandbyPage'));
 const PartnerAmbulancesPage = lazy(() => import('../pages/admin/PartnerAmbulancesPage'));
 const GbvDashboardPage = lazy(() => import('../pages/gbv/GbvDashboardPage'));
 const GbvCaseDetailPage = lazy(() => import('../pages/gbv/GbvCaseDetailPage'));
+// Unauthenticated read-only display for the call-centre TV (token-gated).
+const WallboardDisplayPage = lazy(() => import('../pages/public/WallboardDisplayPage'));
 
 // Placeholder components for unimplemented pages
 const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-danger text-center">Unauthorized Access</div>;
@@ -34,6 +38,17 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    // Public, read-only wallboard for an unattended screen in the ops room.
+    // Sits OUTSIDE AppShell and any RoleGuard on purpose — no login, no chrome.
+    // Access is gated by ?token= matching the backend's WALLBOARD_TOKEN.
+    path: '/display',
+    element: (
+      <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0E1A14' }} />}>
+        <WallboardDisplayPage />
+      </Suspense>
+    ),
   },
   {
     path: '/unauthorized',
@@ -109,6 +124,22 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
             <DashboardPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'wallboard',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER']}>
+            <WallboardPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'fleet/fuel',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN', 'DISPATCHER']}>
+            <FuelPage />
           </RoleGuard>
         ),
       },
