@@ -380,6 +380,7 @@ model Vehicle {
   lastLat            Float?    @map("last_lat")
   lastLng            Float?    @map("last_lng")
   lastLocationAt     DateTime? @map("last_location_at")
+  lastLocationName   String?   @map("last_location_name")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
@@ -409,12 +410,13 @@ model Vehicle {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model CheckIn {
-  id          String   @id @default(uuid())
-  role        Role
-  lat         Float
-  lng         Float
-  selfiePath  String   @map("selfie_path")
-  checkedInAt DateTime @default(now()) @map("checked_in_at")
+  id           String   @id @default(uuid())
+  role         Role
+  lat          Float
+  lng          Float
+  locationName String?  @map("location_name")
+  selfiePath   String   @map("selfie_path")
+  checkedInAt  DateTime @default(now()) @map("checked_in_at")
 
   vehicleId String  @map("vehicle_id")
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])

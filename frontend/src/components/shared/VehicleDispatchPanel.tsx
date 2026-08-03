@@ -169,22 +169,59 @@ export default function VehicleDispatchPanel({ clickedVehicle, onClose }: Props)
           {isLoading ? (
             <div className="h-11 rounded-lg bg-slate-100 animate-pulse" />
           ) : (
-            <div
-              className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${
-                hasDriver
-                  ? 'bg-brand-green/5 border border-brand-green/20'
-                  : 'bg-status-danger/5 border border-status-danger/20'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${hasDriver ? 'bg-brand-green/20' : 'bg-status-danger/20'}`}>
-                  <User size={12} weight="bold" className={hasDriver ? 'text-brand-green' : 'text-status-danger'} />
+            <div className="flex flex-col gap-2">
+              {[
+                { role: 'Driver', person: dbVehicle?.currentDriver, required: true },
+                { role: 'EMT', person: dbVehicle?.currentEmt, required: false },
+                { role: 'Nurse', person: dbVehicle?.currentNurse, required: false },
+              ].map(({ role, person, required }) => (
+                <div
+                  key={role}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${
+                    person
+                      ? 'bg-brand-green/5 border border-brand-green/20'
+                      : required
+                        ? 'bg-status-danger/5 border border-status-danger/20'
+                        : 'bg-slate-50 border border-surface-border'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        person
+                          ? 'bg-brand-green/20'
+                          : required
+                            ? 'bg-status-danger/20'
+                            : 'bg-slate-200'
+                      }`}
+                    >
+                      <User
+                        size={12}
+                        weight="bold"
+                        className={
+                          person
+                            ? 'text-brand-green'
+                            : required
+                              ? 'text-status-danger'
+                              : 'text-slate-400'
+                        }
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">{role}</span>
+                  </div>
+                  <span
+                    className={`text-xs font-bold ${
+                      person
+                        ? 'text-brand-teal'
+                        : required
+                          ? 'text-status-danger'
+                          : 'text-slate-400'
+                    }`}
+                  >
+                    {person?.name ?? (required ? 'Not checked in' : 'Unassigned')}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold text-slate-500">Driver</span>
-              </div>
-              <span className={`text-xs font-bold ${hasDriver ? 'text-brand-teal' : 'text-status-danger'}`}>
-                {dbVehicle?.currentDriver?.name ?? 'Not checked in'}
-              </span>
+              ))}
             </div>
           )}
 

@@ -107,6 +107,7 @@ export default function AppShell() {
         <TopBar
           theme={theme}
           onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onToggleSidebar={() => setCollapsed((c) => !c)}
         />
         {!isConnected && (
           <div className="banner-warn">

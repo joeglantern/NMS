@@ -1,4 +1,4 @@
-import { Bell, SignOut, Phone, Sun, Moon, MagnifyingGlass } from '@phosphor-icons/react';
+import { Bell, SignOut, List, Phone, Sun, Moon, MagnifyingGlass } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -10,9 +10,10 @@ import { useActiveCalls } from '../../hooks/useActiveCalls';
 interface TopBarProps {
   theme: 'light' | 'dark';
   onThemeToggle: () => void;
+  onToggleSidebar: () => void;
 }
 
-export default function TopBar({ theme, onThemeToggle }: TopBarProps) {
+export default function TopBar({ theme, onThemeToggle, onToggleSidebar }: TopBarProps) {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [show, setShow] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -57,7 +58,16 @@ export default function TopBar({ theme, onThemeToggle }: TopBarProps) {
         className="topbar"
         style={{ transform: show ? 'none' : 'translateY(-100%)', transition: 'transform .3s' }}
       >
-        {/* Search */}
+        {/* Left: hamburger (sidebar toggle) + search */}
+        <button
+          onClick={onToggleSidebar}
+          className="icon-btn"
+          style={{ border: 0, background: 'transparent' }}
+          title="Toggle sidebar"
+        >
+          <List size={20} weight="bold" />
+        </button>
+
         <div className="searchbox" style={{ display: 'flex' }}>
           <MagnifyingGlass size={16} />
           <input placeholder="Search incidents, units…" />

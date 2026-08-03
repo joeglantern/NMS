@@ -136,16 +136,24 @@ export const taskRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   /**
    * POST /tasks/:id/reassign
-   * Handover / case termination with reassignment (#10). Requires a reason; an
-   * optional newVehicleId dispatches a replacement crew. Dispatchers/admins only.
+   * Handover / case termination with reassignment. Requires a reason. Optional
+   * newVehicleId or autoAssign=true picks a replacement crew. Checks out the
+   * original driver. Drivers may handover their own task; dispatchers any task.
    */
-  app.post<{ Params: { id: string }; Body: { reason: string; newVehicleId?: string } }>(
+  app.post<{
+    Params: { id: string };
+    Body: { reason: string; newVehicleId?: string; autoAssign?: boolean };
+  }>(
     '/:id/reassign',
-    { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    {
+      preValidation: [
+        requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]),
+      ],
+    },
     async (request, reply) => {
       const result = await taskService.reassignTask(
         request.params.id,
-        { userId: request.user.userId, role: request.user.role },
+        { userId: request.user.userId, role: request.user.role, agencyId: request.user.agencyId },
         request.body ?? { reason: '' },
       );
       return reply.send({ ok: true, data: result });

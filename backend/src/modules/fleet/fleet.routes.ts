@@ -21,14 +21,15 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       imei: string;
       lat: number;
       lng: number;
+      locationName?: string;
     };
   }>(
     '/location',
     // In reality, this might be a specific DEVICE role or DRIVER, but we'll allow DRIVER/DISPATCHER/ADMIN here
     { preValidation: [requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
     async (request, reply) => {
-      const { imei, lat, lng } = request.body;
-      const result = await fleetService.updateVehicleLocation(imei, lat, lng);
+      const { imei, lat, lng, locationName } = request.body;
+      const result = await fleetService.updateVehicleLocation(imei, lat, lng, locationName);
       return reply.send({ ok: true, data: result });
     }
   );
@@ -97,12 +98,17 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         throw new BadRequestError('Valid "lat" and "lng" fields are required (send them before the file part)');
       }
+      const locationNameRaw = file.fields?.locationName?.value;
+      const locationName =
+        typeof locationNameRaw === 'string' && locationNameRaw.trim()
+          ? locationNameRaw.trim()
+          : null;
 
       const vehicle = await fleetService.checkInToCrew(
         request.params.vehicleId,
         request.user.userId,
         request.user.role,
-        { lat, lng },
+        { lat, lng, locationName },
         { filename: file.filename, mimetype: file.mimetype, file: file.file },
       );
       return reply.send({ ok: true, data: vehicle });
@@ -173,6 +179,22 @@ export const fleetRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     async (request, reply) => {
       const crew = await fleetService.listAssignableCrew(request.user.agencyId);
       return reply.send({ ok: true, data: crew });
+    }
+  );
+
+  /**
+   * GET /fleet/available-for-handover
+   * READY agency vehicles with a checked-in driver (for handover picker).
+   */
+  app.get<{ Querystring: { excludeVehicleId?: string } }>(
+    '/available-for-handover',
+    { preValidation: [requireRole([Role.DRIVER, Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const vehicles = await fleetService.listAvailableVehiclesForHandover(
+        request.user.agencyId,
+        request.query.excludeVehicleId,
+      );
+      return reply.send({ ok: true, data: vehicles });
     }
   );
 

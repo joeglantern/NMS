@@ -157,31 +157,43 @@ export class TaskService {
   }
 
   /**
-   * Handover / case termination with reassignment (#10). Cancels the current task
-   * with a required reason (which checks out the original driver by releasing their
-   * vehicle), and, when a replacement vehicle is given, dispatches a new task to it.
+   * Handover / case termination with reassignment. Cancels the current task with a
+   * required reason, checks out the original driver (clears vehicle crew), and —
+   * when a replacement vehicle is given or autoAssign finds one — dispatches a
+   * new task to that crew. Drivers may handover their own active task; dispatchers
+   * may handover any task.
    */
   async reassignTask(
     taskId: string,
-    user: { userId: string; role: Role },
-    data: { reason: string; newVehicleId?: string },
+    user: { userId: string; role: Role; agencyId?: string },
+    data: { reason: string; newVehicleId?: string; autoAssign?: boolean },
   ) {
-    if (!(<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role)) {
-      throw new ForbiddenError('Only dispatchers and admins can reassign tasks');
-    }
+    const isDispatch = (<Role[]>[Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN]).includes(user.role);
     const reason = data.reason?.trim();
     if (!reason || reason.length < 5) {
       throw new BadRequestError('A valid reason (at least 5 characters) is required to reassign');
     }
 
-    const task = await this.app.prisma.task.findUnique({ where: { id: taskId } });
+    const task = await this.app.prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        vehicle: { select: { id: true, agencyId: true } },
+        incident: { select: { id: true, lat: true, lng: true } },
+      },
+    });
     if (!task) throw new NotFoundError('Task not found');
     if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       throw new BadRequestError('This task is already closed');
     }
 
-    // Validate the replacement vehicle (if reassigning to a new crew).
+    const isTaskDriver = user.role === Role.DRIVER && task.driverId === user.userId;
+    if (!isDispatch && !isTaskDriver) {
+      throw new ForbiddenError('Only the assigned driver or a dispatcher can handover this task');
+    }
+
+    // Resolve replacement vehicle: explicit id, or auto-pick if requested.
     let newVehicle = null as null | Awaited<ReturnType<typeof this.app.prisma.vehicle.findUnique>>;
+
     if (data.newVehicleId) {
       if (data.newVehicleId === task.vehicleId) {
         throw new BadRequestError('Choose a different vehicle to reassign to');
@@ -189,19 +201,43 @@ export class TaskService {
       newVehicle = await this.app.prisma.vehicle.findUnique({ where: { id: data.newVehicleId } });
       if (!newVehicle) throw new NotFoundError('Replacement vehicle not found');
       if (!newVehicle.isActive) throw new BadRequestError('Replacement vehicle is not active');
-      if (!newVehicle.currentDriverId) throw new BadRequestError('No driver is checked in to the replacement vehicle');
+      if (newVehicle.status !== VehicleStatus.READY) {
+        throw new BadRequestError('Replacement vehicle is not available');
+      }
+      if (!newVehicle.currentDriverId) {
+        throw new BadRequestError('No driver is checked in to the replacement vehicle');
+      }
+      if (newVehicle.agencyId !== task.vehicle.agencyId) {
+        throw new BadRequestError('Replacement vehicle must belong to the same agency');
+      }
+    } else if (data.autoAssign) {
+      newVehicle = await this.findAvailableVehicleForHandover(
+        task.vehicle.agencyId,
+        task.vehicleId,
+        task.incident.lat,
+        task.incident.lng,
+      );
+      // If none available, fall through — original driver is still checked out and
+      // the incident returns to DISPATCH_HANDLING below.
     }
 
     const now = new Date();
 
-    // Close the original task and release its vehicle (checks out the original driver).
+    // Close the original task.
     const cancelled = await this.app.prisma.task.update({
       where: { id: taskId },
       data: { status: TaskStatus.CANCELLED, cancelledAt: now, cancelReason: reason },
     });
+
+    // Check out the original driver and clear all crew slots on their vehicle.
     await this.app.prisma.vehicle.update({
       where: { id: task.vehicleId },
-      data: { status: VehicleStatus.READY },
+      data: {
+        status: VehicleStatus.READY,
+        currentDriverId: null,
+        currentEmtId: null,
+        currentNurseId: null,
+      },
     });
 
     // Tell the original crew their task is cancelled so their app clears it.
@@ -209,14 +245,19 @@ export class TaskService {
     if (task.emtId) oldRoom = oldRoom.to(`user:${task.emtId}`);
     if (task.nurseId) oldRoom = oldRoom.to(`user:${task.nurseId}`);
     oldRoom.emit('task:updated', cancelled);
+    this.app.io
+      .to(`role:${Role.DISPATCHER}`)
+      .to(`role:${Role.ADMIN}`)
+      .to(`role:${Role.SUPER_ADMIN}`)
+      .emit('vehicle:crew', { id: task.vehicleId, currentDriverId: null, currentEmtId: null, currentNurseId: null });
 
-    // If no replacement was given, send the incident back to dispatch handling.
+    // If no replacement was given/found, send the incident back to dispatch handling.
     if (!newVehicle) {
       await this.app.prisma.incident.update({
         where: { id: task.incidentId },
         data: { status: IncidentStatus.DISPATCH_HANDLING },
       });
-      return { cancelled, newTask: null };
+      return { cancelled, newTask: null, checkedOutVehicleId: task.vehicleId };
     }
 
     // Dispatch a fresh task to the replacement vehicle's crew.
@@ -228,6 +269,13 @@ export class TaskService {
         driverId: newVehicle.currentDriverId!,
         emtId: newVehicle.currentEmtId ?? undefined,
         nurseId: newVehicle.currentNurseId ?? undefined,
+      },
+      include: {
+        incident: true,
+        vehicle: { select: { id: true, registrationNumber: true, imei: true } },
+        driver: { select: { id: true, name: true, phone: true } },
+        emt: { select: { id: true, name: true, phone: true } },
+        nurse: { select: { id: true, name: true, phone: true } },
       },
     });
     await this.app.prisma.vehicle.update({
@@ -244,7 +292,44 @@ export class TaskService {
     if (newVehicle.currentNurseId) newRoom = newRoom.to(`user:${newVehicle.currentNurseId}`);
     newRoom.emit('task:assigned', newTask);
 
-    return { cancelled, newTask };
+    return { cancelled, newTask, checkedOutVehicleId: task.vehicleId };
+  }
+
+  /** Pick the nearest READY vehicle with a checked-in driver in the agency. */
+  private async findAvailableVehicleForHandover(
+    agencyId: string,
+    excludeVehicleId: string,
+    lat?: number | null,
+    lng?: number | null,
+  ) {
+    const candidates = await this.app.prisma.vehicle.findMany({
+      where: {
+        agencyId,
+        isActive: true,
+        status: VehicleStatus.READY,
+        currentDriverId: { not: null },
+        id: { not: excludeVehicleId },
+      },
+    });
+    if (candidates.length === 0) return null;
+    if (lat == null || lng == null) return candidates[0];
+
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dist = (aLat: number, aLng: number) => {
+      const R = 6371;
+      const dLat = toRad(aLat - lat);
+      const dLng = toRad(aLng - lng);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat)) * Math.cos(toRad(aLat)) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.asin(Math.sqrt(a));
+    };
+
+    return [...candidates].sort((a, b) => {
+      const da = a.lastLat != null && a.lastLng != null ? dist(a.lastLat, a.lastLng) : Number.POSITIVE_INFINITY;
+      const db = b.lastLat != null && b.lastLng != null ? dist(b.lastLat, b.lastLng) : Number.POSITIVE_INFINITY;
+      return da - db;
+    })[0];
   }
 
   /**

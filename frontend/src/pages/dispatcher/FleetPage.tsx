@@ -356,6 +356,13 @@ export default function FleetPage() {
               { Icon: NavigationArrow, label: 'Heading', value: selectedLive?.heading != null ? `${selectedLive.heading}°` : '—' },
               { Icon: Gauge, label: 'Speed', value: selectedLive?.speed != null ? `${selectedLive.speed} km/h` : '—' },
               {
+                Icon: MapTrifold, label: 'Location',
+                value: selected.lastLocationName
+                  || ((selectedLive?.lat ?? selected.lastLat)
+                    ? `${(selectedLive?.lat ?? selected.lastLat)!.toFixed(5)}, ${(selectedLive?.lng ?? selected.lastLng)!.toFixed(5)}`
+                    : 'No signal'),
+              },
+              {
                 Icon: MapTrifold, label: 'Coordinates',
                 value: (selectedLive?.lat ?? selected.lastLat)
                   ? `${(selectedLive?.lat ?? selected.lastLat)!.toFixed(5)}, ${(selectedLive?.lng ?? selected.lastLng)!.toFixed(5)}`

@@ -124,6 +124,11 @@ const schema = {
       type: 'string',
       default: 'en',
     },
+    // Same key as frontend / mobile — used to reverse-geocode check-in GPS → place names
+    GOOGLE_MAPS_KEY: {
+      type: 'string',
+      default: '',
+    },
   },
 };
 
@@ -162,6 +167,7 @@ declare module 'fastify' {
       WHATSAPP_TOKEN: string;
       WHATSAPP_TEMPLATE_NAME: string;
       WHATSAPP_TEMPLATE_LANG: string;
+      GOOGLE_MAPS_KEY: string;
     };
   }
 }
