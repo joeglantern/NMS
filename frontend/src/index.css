@@ -69,36 +69,6 @@
   --radius-xl: 22px;
 }
 
-[data-theme="dark"] {
-  --bg: #07100C;
-  --bg-2: #0A1610;
-  --surface: #0E1A14;
-  --surface-2: #122019;
-  --surface-3: #16261D;
-  --border: #1E3127;
-  --border-strong: #294234;
-  --ink: #E8F1EC;
-  --ink-2: #B6C7BE;
-  --muted: #8AA194;
-  --muted-2: #5F7567;
-  --ring: rgba(45,190,116,.42);
-  --green-light: #102A1E;
-  --green: #20A968;
-  --green-bright: #3DD489;
-  --red-soft: #2A1413;
-  --gold-soft: #251D0D;
-  --amber-soft: #241B0C;
-  --blue-soft: #111E2E;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-  --shadow: 0 1px 3px rgba(0,0,0,.5);
-  --shadow-md: 0 6px 18px rgba(0,0,0,.5);
-  --shadow-lg: 0 24px 60px rgba(0,0,0,.6);
-  --nav-bg: #050E0A;
-  --nav-bg-2: #081710;
-  --nav-border: rgba(255,255,255,.07);
-  --nav-active: #103024;
-}
-
 /* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -153,8 +123,6 @@ body {
 .btn-block { width: 100%; }
 .btn-primary { background: var(--green); color: #fff; box-shadow: var(--shadow-sm); }
 .btn-primary:hover { background: var(--green-dark); }
-[data-theme="dark"] .btn-primary { color: #04140C; }
-[data-theme="dark"] .btn-primary:hover { background: var(--green-bright); }
 .btn-ghost { background: transparent; color: var(--ink-2); border-color: var(--border-strong); }
 .btn-ghost:hover { background: var(--surface-2); border-color: var(--muted-2); }
 .btn-soft { background: var(--surface-3); color: var(--ink); border-color: var(--border); }
@@ -189,11 +157,8 @@ body {
 .pill .dot { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
 .pill-red { background: var(--red-soft); color: var(--red); }
 .pill-green { background: var(--green-light); color: var(--green); }
-[data-theme="dark"] .pill-green { color: var(--green-bright); }
 .pill-amber { background: var(--amber-soft); color: var(--amber); }
-[data-theme="dark"] .pill-amber { color: #E0A93E; }
 .pill-blue { background: var(--blue-soft); color: var(--blue); }
-[data-theme="dark"] .pill-blue { color: #6BA0F5; }
 .pill-gold { background: var(--gold-soft); color: var(--gold); }
 .pill-gray { background: var(--surface-3); color: var(--muted); border-color: var(--border); }
 
@@ -318,9 +283,7 @@ body {
   padding: 6px 10px; border-radius: 8px; background: var(--green-light); color: var(--green);
   border: 1px solid color-mix(in srgb, var(--green) 18%, transparent); white-space: nowrap;
 }
-[data-theme="dark"] .status-chip { color: var(--green-bright); }
 .live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--green); }
-[data-theme="dark"] .live-badge { color: var(--green-bright); }
 .live-badge .dot { width: 7px; height: 7px; border-radius: 99px; background: currentColor; display: inline-block; }
 
 /* ── Stat cards ── */
@@ -367,7 +330,6 @@ body {
 .tab { border: 0; background: transparent; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); padding: 11px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: .14s; display: inline-flex; align-items: center; gap: 7px; }
 .tab:hover { color: var(--ink); }
 .tab.on { color: var(--green); border-bottom-color: var(--green); }
-[data-theme="dark"] .tab.on { color: var(--green-bright); border-bottom-color: var(--green-bright); }
 
 /* progress meters */
 .meter { height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
@@ -381,7 +343,6 @@ body {
 .tl-dot { position:absolute; left:-26px; top:1px; width:20px; height:20px; border-radius:99px; background:var(--surface); border:2px solid var(--border-strong); display:grid; place-items:center; font-size:10px; color:var(--muted); }
 .tl-dot.done { background:var(--green); border-color:var(--green); color:#fff; }
 .tl-dot.active { border-color:var(--green); color:var(--green); }
-[data-theme="dark"] .tl-dot.done { color:#04140C; }
 
 /* ── Wizard steps ── */
 .steps { display: flex; align-items: center; }
@@ -413,12 +374,10 @@ body {
 .login-cobrand-div { width: 1px; height: 40px; background: #E3E8E5; }
 .login-body { padding: 28px 30px 26px; }
 .login-kicker { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--green); margin-bottom: 8px; }
-[data-theme="dark"] .login-kicker { color: var(--green-bright); }
 .login-title { font-size: 24px; font-weight: 750; letter-spacing: -.025em; margin: 0 0 5px; color: var(--ink); }
 .login-sub { font-size: 14px; color: var(--muted); margin: 0 0 24px; line-height: 1.5; }
 .login-foot { display: flex; align-items: center; gap: 8px; padding: 14px 30px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); line-height: 1.4; }
 .login-foot svg { color: var(--green); flex-shrink: 0; }
-[data-theme="dark"] .login-foot svg { color: var(--green-bright); }
 .login-copy { font-size: 12px; color: var(--muted-2); text-align: center; margin: 0; max-width: 380px; line-height: 1.5; }
 
 /* ── Mobile bottom nav ── */
@@ -435,7 +394,6 @@ body {
   .bn-item svg { width: 22px; height: 22px; }
   .bn-item span { font-size: 10px; font-weight: 600; }
   .bn-item.on { color: var(--green); }
-  [data-theme="dark"] .bn-item.on { color: var(--green-bright); }
   .bn-badge { position: absolute; top: 2px; right: calc(50% - 18px); width: 8px; height: 8px; border-radius: 99px; background: var(--red); border: 1.5px solid var(--surface); }
   .content { padding: 16px 14px 96px; }
   .topbar { padding: 10px 14px; }
@@ -449,11 +407,9 @@ body {
 .bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
 .bars .bar { flex: 1; background: var(--green-light); border-radius: 5px 5px 0 0; position: relative; min-height: 4px; }
 .bars .bar > span { position: absolute; inset: 0; background: var(--green); border-radius: 5px 5px 0 0; opacity: .85; }
-[data-theme="dark"] .bars .bar { background: #11301F; }
 
 /* ── Map view ── */
 .mapview-bg { position: absolute; inset: 0; background: radial-gradient(120% 100% at 30% 0%, var(--surface-2), var(--surface-3)); }
-[data-theme="dark"] .mapview-bg { background: radial-gradient(120% 120% at 50% 0%, #0C1C14, #07120D); }
 .map-legend {
   position: absolute; left: 14px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px 14px;
   background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(6px);
@@ -470,4 +426,3 @@ body {
 /* ── Connection banners ── */
 .banner-warn { display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: color-mix(in srgb, var(--amber) 12%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--amber) 25%, transparent); color: var(--amber); font-size: 12.5px; font-weight: 600; }
 .banner-ok { display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: var(--green-light); border-bottom: 1px solid color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); font-size: 12.5px; font-weight: 600; }
-[data-theme="dark"] .banner-ok { color: var(--green-bright); }

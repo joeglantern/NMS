@@ -14,16 +14,13 @@ export default function AppShell() {
   const user = useAuthStore((s) => s.user);
 
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
-  const [theme, setTheme] = useState<'light' | 'dark'>(
-    () => (localStorage.getItem('theme') as 'light' | 'dark') ?? 'light'
-  );
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [reconnectedFlash, setReconnectedFlash] = useState(false);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    delete document.documentElement.dataset.theme;
+    localStorage.removeItem('theme');
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(collapsed));
@@ -105,11 +102,7 @@ export default function AppShell() {
         onToggleCollapse={() => setCollapsed((c) => !c)}
       />
       <div className="main">
-        <TopBar
-          onToggleSidebar={() => setCollapsed((c) => !c)}
-          theme={theme}
-          onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        />
+        <TopBar onToggleSidebar={() => setCollapsed((c) => !c)} />
         {!isConnected && (
           <div className="banner-warn">
             <span style={{ width: 8, height: 8, borderRadius: '99px', background: 'var(--amber)', flexShrink: 0, display: 'inline-block', animation: 'pulse 2s infinite' }} />

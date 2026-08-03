@@ -911,7 +911,11 @@ export default function IncidentDetailPage() {
                     <tr key={v.id} className={`border-b border-surface-border hover:bg-slate-50 cursor-pointer transition-colors ${selectedVehicleId === v.id ? 'bg-brand-green/5' : ''}`} onClick={() => setSelectedVehicleId(v.id)}>
                       <td className="px-6 py-3">
                         <p className="font-semibold text-brand-teal text-sm">{v.registrationNumber}</p>
-                        <p className="text-xs text-slate-text mt-0.5">{v.currentDriver?.name ?? '—'}</p>
+                        <p className="text-xs text-slate-text mt-0.5">
+                          {v.currentDriver?.name ?? '—'}
+                          {v.currentEmt ? ` · EMT ${v.currentEmt.name}` : ''}
+                          {v.currentNurse ? ` · Nurse ${v.currentNurse.name}` : ''}
+                        </p>
                       </td>
                       <td className="px-6 py-3">
                         <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-brand-green/10 text-brand-green">
@@ -948,7 +952,10 @@ export default function IncidentDetailPage() {
                   <option value="">Select available unit...</option>
                   {(nearestVehicles || []).map(v => (
                     <option key={v.id} value={v.id}>
-                      {v.registrationNumber}{v.currentDriver ? ` — ${v.currentDriver.name}` : ' — no crew'}
+                      {v.registrationNumber}
+                      {v.currentDriver ? ` — ${v.currentDriver.name}` : ' — no driver'}
+                      {v.currentEmt ? ` / EMT ${v.currentEmt.name}` : ''}
+                      {v.currentNurse ? ` / Nurse ${v.currentNurse.name}` : ''}
                     </option>
                   ))}
                 </select>
@@ -962,12 +969,18 @@ export default function IncidentDetailPage() {
                 return (
                   <div className={`rounded-lg p-4 border text-sm ${hasDriver ? 'bg-brand-green/5 border-brand-green/20' : 'bg-status-warning/5 border-status-warning/30'}`}>
                     <p className="text-xs font-black uppercase tracking-widest mb-3 text-slate-400">Crew on board</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">Driver</span>
-                      <span className={`text-xs font-semibold ${hasDriver ? 'text-brand-teal' : 'text-status-danger'}`}>
-                        {sv.currentDriver?.name ?? 'Not checked in'}
-                      </span>
-                    </div>
+                    {[
+                      { role: 'Driver', person: sv.currentDriver },
+                      { role: 'EMT', person: sv.currentEmt },
+                      { role: 'Nurse', person: sv.currentNurse },
+                    ].map(({ role, person }) => (
+                      <div key={role} className="flex items-center justify-between py-1">
+                        <span className="text-xs text-slate-400">{role}</span>
+                        <span className={`text-xs font-semibold ${person ? 'text-brand-teal' : role === 'Driver' ? 'text-status-danger' : 'text-slate-400'}`}>
+                          {person?.name ?? (role === 'Driver' ? 'Not checked in' : 'Unassigned')}
+                        </span>
+                      </div>
+                    ))}
                     {!hasDriver && (
                       <p className="text-xs text-status-warning font-medium mt-3">
                         A driver must be checked in via the mobile app before dispatching.

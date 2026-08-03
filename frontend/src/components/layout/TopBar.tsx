@@ -1,4 +1,4 @@
-import { Bell, SignOut, List, Phone, Sun, Moon, MagnifyingGlass } from '@phosphor-icons/react';
+import { Bell, SignOut, List, Phone, MagnifyingGlass } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -8,11 +8,9 @@ import { useActiveCalls } from '../../hooks/useActiveCalls';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
-  theme: 'light' | 'dark';
-  onThemeToggle: () => void;
 }
 
-export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBarProps) {
+export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [show, setShow] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -94,11 +92,6 @@ export default function TopBar({ onToggleSidebar, theme, onThemeToggle }: TopBar
             {activeCalls.length} active call{activeCalls.length > 1 ? 's' : ''}
           </Link>
         )}
-
-        {/* Theme toggle */}
-        <button className="icon-btn" onClick={onThemeToggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
 
         {/* Notifications */}
         <button

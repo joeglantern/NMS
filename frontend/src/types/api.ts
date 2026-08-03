@@ -56,6 +56,7 @@ export interface Vehicle {
   lastLat?: number;
   lastLng?: number;
   lastLocationAt?: string;
+  lastLocationName?: string;
   updatedAt?: string;
   createdAt?: string;
   agencyId: string;

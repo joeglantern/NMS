@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../api/client';
 import { socket } from '../lib/socket';
 import { Vehicle } from '../types/api';
@@ -29,6 +29,7 @@ export function getVehicleTrackingStatus(v: LiveVehicle): VehicleTrackingStatus 
 }
 
 export function useVehicleTracking() {
+  const queryClient = useQueryClient();
   const [livePositions, setLivePositions] = useState<Map<string, LiveVehicle>>(new Map());
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
@@ -121,7 +122,7 @@ export function useVehicleTracking() {
             timestamp: u.timestamp ?? new Date().toISOString(),
             dbStatus: u.dbStatus ?? existing?.dbStatus ?? 'READY',
             isActive: u.isActive ?? existing?.isActive ?? true,
-            hasDriver: existing?.hasDriver ?? false, // GPS push doesn't carry crew info
+            hasDriver: u.hasDriver ?? existing?.hasDriver ?? false,
           });
         }
         return next;
@@ -157,15 +158,41 @@ export function useVehicleTracking() {
       }
     }
 
+    function onVehicleCrew(payload: {
+      id?: string;
+      vehicleId?: string;
+      currentDriverId?: string | null;
+      currentDriver?: { id: string } | null;
+    }) {
+      const vehicleId = payload.id ?? payload.vehicleId;
+      if (!vehicleId) return;
+      const hasDriver = !!(payload.currentDriver ?? payload.currentDriverId);
+      setLivePositions(prev => {
+        const next = new Map(prev);
+        for (const [key, v] of next) {
+          if (v.vehicleId === vehicleId) {
+            next.set(key, { ...v, hasDriver });
+          }
+        }
+        return next;
+      });
+      // Refresh DB crew (EMT/nurse names) on Fleet + Dispatch panels
+      queryClient.invalidateQueries({ queryKey: ['admin', 'vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['dispatch', 'vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles', 'nearest'] });
+    }
+
     socket.on('fleet:pos', onFleetPos);
     socket.on('task:assigned', onTaskAssigned);
     socket.on('task:updated', onTaskUpdated);
+    socket.on('vehicle:crew', onVehicleCrew);
     return () => {
       socket.off('fleet:pos', onFleetPos);
       socket.off('task:assigned', onTaskAssigned);
       socket.off('task:updated', onTaskUpdated);
+      socket.off('vehicle:crew', onVehicleCrew);
     };
-  }, []);
+  }, [queryClient]);
 
   return {
     vehicles: Array.from(livePositions.values()),
