@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User } from '../types/api';
+import { User, Role } from '../types/api';
 
 interface AuthStore {
   token: string | null;
   user: User | null;
   setAuth: (token: string, user: User) => void;
-  setRole: (role: User['role']) => void;
+  setRole: (role: Role) => void;
+  setToken: (token: string) => void;
   logout: () => void;
 }
 
@@ -15,10 +16,32 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       token: null,
       user: null,
-      setAuth: (token, user) => set({ token, user }),
-      setRole: (role) => set((s) => ({ user: s.user ? { ...s.user, role } : null })),
+
+      setAuth: (token, user) =>
+        set({
+          token,
+          user: {
+            ...user,
+            roles: user.roles?.length ? user.roles : [user.role],
+            activeRole: user.activeRole || user.role,
+          },
+        }),
+
+      setRole: (role) =>
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                role,
+                activeRole: role,
+              }
+            : null,
+        })),
+
+      setToken: (token) => set({ token }),
+
       logout: () => set({ token: null, user: null }),
     }),
-    { name: 'nccg-eoc-auth' }
+    { name: 'nms-auth' }
   )
 );

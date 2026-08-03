@@ -1,27 +1,24 @@
-import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { Role } from '../../types/api';
 import { useAuthStore } from '../../stores/authStore';
-import { jwtRole } from '../../lib/jwt';
 
-export default function RoleGuard({ allowed, children }: { allowed: string[]; children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  const role = useAuthStore((s) => s.user?.role);
+interface RoleGuardProps {
+  allowed: Role[];
+  children: React.ReactNode;
+}
 
-  // Not logged in at all → send to login
-  if (!token) return <Navigate to="/login" replace />;
+export default function RoleGuard({ allowed, children }: RoleGuardProps) {
+  const { token, user } = useAuthStore();
 
-  // Token exists but role not loaded yet → wait (don't redirect to login!)
-  if (!role) return null;
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
 
-  // The dev role switcher overrides `role` locally for UI preview only (see
-  // DevRoleSwitcher) — it never changes the account's real login role. That
-  // preview override must never lock the real account out of a page its true
-  // role is allowed to reach, so the actual JWT role always wins first.
-  const realRole = jwtRole(token);
-  if (realRole && allowed.includes(realRole)) return <>{children}</>;
+  const activeRole = user.activeRole || user.role;
 
-  // Logged in but wrong role → show unauthorized
-  if (!allowed.includes(role)) return <Navigate to="/unauthorized" replace />;
+  if (!allowed.includes(activeRole)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
 
   return <>{children}</>;
 }

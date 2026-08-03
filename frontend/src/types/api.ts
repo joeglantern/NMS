@@ -1,4 +1,13 @@
-export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'WATCHER' | 'DISPATCHER' | 'PARTNER' | 'DRIVER' | 'EMT' | 'NURSE';
+export type Role =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'WATCHER'
+  | 'DISPATCHER'
+  | 'PARTNER'
+  | 'DRIVER'
+  | 'EMT'
+  | 'NURSE';
+
 export type AgencyType = 'INTERNAL' | 'PARTNER';
 
 export type IncidentStatus =
@@ -25,7 +34,9 @@ export interface User {
   name: string;
   phone?: string;
   role: Role;
-  agencyId: string | null;
+  roles?: Role[];
+  activeRole?: Role;
+  agencyId: string;
   agency?: Agency;
   isActive: boolean;
   createdAt: string;
@@ -41,12 +52,6 @@ export interface Agency {
   isActive: boolean;
 }
 
-export interface CrewMember {
-  id: string;
-  name: string;
-  phone?: string | null;
-}
-
 export interface Vehicle {
   id: string;
   registrationNumber: string;
@@ -56,13 +61,9 @@ export interface Vehicle {
   lastLat?: number;
   lastLng?: number;
   lastLocationAt?: string;
-  lastLocationName?: string;
   updatedAt?: string;
   createdAt?: string;
   agencyId: string;
-  currentDriver?: CrewMember | null;
-  currentEmt?: CrewMember | null;
-  currentNurse?: CrewMember | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -86,64 +87,13 @@ export interface Facility {
   isActive: boolean;
 }
 
-export interface MaternityVitals {
-  admissionDateTime?: string;
-  parity?: string;
-  gravid?: string;
-  fetalHeartRate?: string;
-  membranes?: string;
-  characterOfLiquor?: string;
-  moulding?: string;
-  cervicalDilatation?: string;
-  descent?: string;
-  uterineContraction?: string;
-  medicationsFetal?: string;
-  bp?: string;
-  pulse?: string;
-  temperature?: string;
-  rbs?: string;
-  spo2?: string;
-  gcs?: string;
-  proteinInUrine?: string;
-  glucoseInUrine?: string;
-  urineOutput?: string;
-  deliveryDateTime?: string;
-  modeOfDelivery?: string;
-  newbornGender?: string;
-  birthWeight?: string;
-  conditionOfBaby?: string;
-  apgar1Min?: string;
-  apgar5Min?: string;
-  apgar10Min?: string;
-  medicationNewborn?: string;
-}
-
-export interface GbvReport {
-  id: string;
-  incidentId: string;
-  survivorResidence?: string | null;
-  hasDisability?: boolean | null;
-  gbvTypes: string[];
-  violationLocation?: string | null;
-  referredFor: string[];
-  referralFacility?: string | null;
-  firstDisclosedTo?: string | null;
-  challenges?: string | null;
-  recommendations?: string | null;
-  comment?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Incident {
   id: string;
   caseNumber: string;
   status: IncidentStatus;
-  isGbvCase?: boolean;
   chiefComplaint: string;
   locationName: string;
   subCounty: string;
-  subCountySource?: 'AUTO' | 'MANUAL' | null;
   lat?: number;
   lng?: number;
   alertMode?: string;
@@ -153,7 +103,6 @@ export interface Incident {
   patientAge?: string;
   patientGender?: string;
   patientNhif?: string;
-  patientNationalId?: string;
   patientContact?: string;
   nextOfKin?: string;
   nextOfKinPhone?: string;
@@ -161,36 +110,15 @@ export interface Incident {
   alertNatureDetail?: string;
   originOfAlert?: string;
   placeOfReferral?: string;
-  healthcareWorkerName?: string;
-  healthcareWorkerContact?: string;
-  targetFacilityId?: string | null;
-  targetFacility?: Facility | null;
   massCasualty: boolean;
   massCasualtyCount?: number;
   watcherComments?: string;
   dispatcherComments?: string;
-  dispatcherChallenges?: string;
   preHospitalManagement?: string;
-  partnerNotes?: string;
-  pcrUrl?: string;
-  closureReason?: string;
-  closedById?: string;
   createdAt: string;
   watcher?: Pick<User, 'id' | 'name' | 'phone'>;
   dispatcher?: Pick<User, 'id' | 'name' | 'phone'>;
   tasks?: Task[];
-  forwardingLogs?: ForwardingLog[];
-  gbvReport?: GbvReport | null;
-  maternityVitals?: MaternityVitals | null;
-}
-
-export interface ForwardingLog {
-  id: string;
-  incidentId: string;
-  reason: string;
-  createdAt: string;
-  fromAgency: { id: string; name: string };
-  toAgency: { id: string; name: string };
 }
 
 export interface Task {
@@ -202,96 +130,13 @@ export interface Task {
   patientPickAt?: string;
   facilityArrivalAt?: string;
   completedAt?: string;
-  cancelledAt?: string;
-  cancelReason?: string;
-  handoverVitals?: Record<string, string> | null;
   incidentId: string;
   vehicleId: string;
   vehicle?: Vehicle;
   driverId: string;
-  emtId?: string | null;
-  nurseId?: string | null;
-  driver?: Pick<User, 'name' | 'phone'> | null;
-  emt?: Pick<User, 'name' | 'phone'> | null;
-  nurse?: Pick<User, 'name' | 'phone'> | null;
-}
-
-export interface TaskStop {
-  id: string;
-  taskId: string;
-  name: string;
-  facilityId?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-  note?: string | null;
-  sequence: number;
-  arrivedAt?: string | null;
-  createdAt: string;
-}
-
-export interface PartnerAmbulance {
-  id: string;
-  agencyId?: string | null;
-  agency?: { id: string; name: string } | null;
-  registrationNumber: string;
-  vehicleType?: string | null;
-  contactName?: string | null;
-  contactPhone?: string | null;
-  baseLocation?: string | null;
-  capacity?: string | null;
-  notes?: string | null;
-  isActive: boolean;
-}
-
-export interface PatientCareReport {
-  id: string;
-  taskId: string;
-  uploaderId: string;
-  note: string;
-  filePath: string;
-  mimeType: string;
-  fileSize: number;
-  createdAt: string;
-}
-
-export interface SmsMessage {
-  id: string;
-  recipient: string;
-  message: string;
-  channel?: string; // SMS | WHATSAPP
-  category: string;
-  status: string;
-  providerMessageId?: string | null;
-  error?: string | null;
-  groupLabel?: string | null;
-  incidentId?: string | null;
-  createdAt: string;
-}
-
-export interface SmsContact {
-  id: string;
-  name: string;
-  phone: string;
-  group: string;
-  isActive: boolean;
-}
-
-export interface SmsTemplate {
-  id: string;
-  key: string;
-  label: string;
-  body: string;
-}
-
-export interface AuditLog {
-  id: string;
-  action: 'CREATE' | 'UPDATE' | 'STATUS_CHANGE' | string;
-  subjectType: string;
-  subjectId: string;
-  oldValues?: Record<string, unknown>;
-  newValues?: Record<string, unknown>;
-  createdAt: string;
-  user: Pick<User, 'id' | 'name' | 'role'>;
+  emtId: string;
+  nurseId: string;
+  driver?: Pick<User, 'name' | 'phone'>;
 }
 
 export type CallDirection = 'INBOUND' | 'OUTBOUND' | 'INTERNAL';

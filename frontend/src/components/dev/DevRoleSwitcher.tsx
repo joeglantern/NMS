@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { UserSwitch } from '@phosphor-icons/react';
+import { useState } from 'react';
+import api from '../../api/client';
 import { useAuthStore } from '../../stores/authStore';
 import { Role } from '../../types/api';
-import { jwtRole } from '../../lib/jwt';
 
 const ROLE_ROUTES: Record<Role, string> = {
   SUPER_ADMIN: '/admin/users',
@@ -11,12 +9,10 @@ const ROLE_ROUTES: Record<Role, string> = {
   DISPATCHER: '/dashboard',
   WATCHER: '/watcher/new-incident',
   PARTNER: '/partner/dashboard',
-  DRIVER: '/dashboard',
-  EMT: '/dashboard',
-  NURSE: '/dashboard',
+  DRIVER: '/driver/dashboard',
+  EMT: '/emt/dashboard',
+  NURSE: '/nurse/dashboard',
 };
-
-const ROLES: Role[] = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER', 'PARTNER'];
 
 const ROLE_COLORS: Record<Role, string> = {
   SUPER_ADMIN: 'bg-purple-600',
@@ -24,102 +20,98 @@ const ROLE_COLORS: Record<Role, string> = {
   DISPATCHER: 'bg-status-info',
   WATCHER: 'bg-status-warning',
   PARTNER: 'bg-brand-green',
-  DRIVER: 'bg-slate-500',
-  EMT: 'bg-slate-500',
-  NURSE: 'bg-slate-500',
+  DRIVER: 'bg-orange-600',
+  EMT: 'bg-red-600',
+  NURSE: 'bg-pink-600',
 };
 
-/**
- * Role switcher — lives as an icon in the top bar. Switches the UI role for
- * navigation/preview only (API permissions still follow the logged-in user).
- * Only shown to real SUPER_ADMIN accounts, since only they can actually load
- * every page's data; other roles would just hit 403s on the switched pages.
- */
 export default function DevRoleSwitcher() {
   const [open, setOpen] = useState(false);
-  const [pendingNav, setPendingNav] = useState<string | null>(null);
-  const { user, token, setRole } = useAuthStore();
-  const navigate = useNavigate();
-  const ref = useRef<HTMLDivElement>(null);
+  const [switching, setSwitching] = useState(false);
+  const { token, user, setAuth, setRole } = useAuthStore();
 
-  useEffect(() => {
-    if (pendingNav) {
-      navigate(pendingNav);
-      setPendingNav(null);
+  if (!user) return null;
+
+  const userRoles: Role[] = user.roles && user.roles.length > 0 ? user.roles : [user.role];
+  const activeRole: Role = user.activeRole || user.role || userRoles[0];
+
+  if (userRoles.length <= 1) return null;
+
+  const switchTo = async (role: Role) => {
+    if (role === activeRole || switching) {
+      setOpen(false);
+      return;
     }
-  }, [pendingNav, navigate]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
+    setSwitching(true);
 
-  // Only real SUPER_ADMIN logins get the switcher (read from the token, not the
-  // mutable store role, so switching to another role does not hide it).
-  if (!user || jwtRole(token) !== 'SUPER_ADMIN') return null;
+    try {
+      if (token) {
+        const response = await api.post('/auth/switch-role', { role });
+        const data = response.data.data;
 
-  const switchTo = (role: Role) => {
-    setRole(role);
-    setOpen(false);
-    setPendingNav(ROLE_ROUTES[role]);
+        if (data?.token && data?.user) {
+          setAuth(data.token, data.user);
+        } else {
+          setRole(role);
+        }
+      } else {
+        setRole(role);
+      }
+    } catch {
+      // If the backend route is not deployed yet, keep frontend role switching working.
+      setRole(role);
+    } finally {
+      setOpen(false);
+      setSwitching(false);
+      window.location.href = ROLE_ROUTES[role] || '/dashboard';
+    }
   };
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        className="icon-btn"
-        style={{ position: 'relative' }}
-        onClick={() => setOpen((o) => !o)}
-        title={`Role: ${user.role.replace('_', ' ')} — switch (UI preview)`}
-      >
-        <UserSwitch size={18} />
-        <span
-          className={ROLE_COLORS[user.role]}
-          style={{
-            position: 'absolute', top: 6, right: 6,
-            width: 8, height: 8, borderRadius: '99px',
-            border: '1.5px solid var(--surface)',
-          }}
-        />
-      </button>
-
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-2">
       {open && (
-        <div
-          className="rounded-2xl shadow-2xl p-3 flex flex-col gap-1.5"
-          style={{
-            position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 9999,
-            minWidth: 210, background: 'var(--surface)', border: '1px solid var(--border)',
-          }}
-        >
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 px-1" style={{ color: 'var(--muted)' }}>
-            Switch Role
+        <div className="bg-[#1a2327] border border-brand-teal/30 rounded-2xl shadow-2xl p-4 flex flex-col gap-2 min-w-[220px]">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">
+            Switch Role Center
           </p>
-          {ROLES.map((role) => (
+
+          {userRoles.map((role) => (
             <button
               key={role}
               onClick={() => switchTo(role)}
-              className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2.5 ${
-                user.role === role ? `${ROLE_COLORS[role]} text-white shadow-md` : ''
+              disabled={switching}
+              className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-3 disabled:opacity-60 ${
+                activeRole === role
+                  ? `${ROLE_COLORS[role]} text-white shadow-md`
+                  : 'text-slate-400 hover:bg-white/5'
               }`}
-              style={user.role === role ? undefined : { color: 'var(--muted)' }}
-              onMouseEnter={(e) => { if (user.role !== role) e.currentTarget.style.background = 'var(--surface-2)'; }}
-              onMouseLeave={(e) => { if (user.role !== role) e.currentTarget.style.background = 'transparent'; }}
+              type="button"
             >
-              {user.role === role && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              {activeRole === role && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              )}
               {role.replace('_', ' ')}
             </button>
           ))}
-          <div className="mt-1 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-            <p className="text-[8px] text-center leading-tight" style={{ color: 'var(--muted-2)' }}>
-              UI navigation only — API permissions use your login role
+
+          <div className="border-t border-white/10 mt-1 pt-2">
+            <p className="text-[9px] text-slate-600 uppercase tracking-widest text-center">
+              Multi-role access enabled
             </p>
           </div>
         </div>
       )}
+
+      <button
+        onClick={() => setOpen(!open)}
+        className="bg-[#1a2327] border border-brand-teal/40 text-brand-green font-black text-[10px] uppercase tracking-widest px-4 py-3 rounded-2xl shadow-2xl hover:border-brand-green transition-all flex items-center gap-2"
+        type="button"
+      >
+        <span className={`w-2 h-2 rounded-full ${ROLE_COLORS[activeRole]} animate-pulse`} />
+        {activeRole.replace('_', ' ')}
+        <span className="text-slate-500">{open ? '▲' : '▼'}</span>
+      </button>
     </div>
   );
 }
