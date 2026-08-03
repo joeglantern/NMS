@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserSwitch } from '@phosphor-icons/react';
 import { useAuthStore } from '../../stores/authStore';
 import { Role } from '../../types/api';
+import { jwtRole } from '../../lib/jwt';
 
 const ROLE_ROUTES: Record<Role, string> = {
   SUPER_ADMIN: '/admin/users',
@@ -27,22 +28,6 @@ const ROLE_COLORS: Record<Role, string> = {
   EMT: 'bg-slate-500',
   NURSE: 'bg-slate-500',
 };
-
-/**
- * Reads the real role from the JWT (immune to the UI role switch, which only
- * mutates the store copy). This is the account's true login role.
- */
-function jwtRole(token: string | null): Role | null {
-  if (!token) return null;
-  try {
-    const part = token.split('.')[1];
-    if (!part) return null;
-    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
-    return (JSON.parse(json).role as Role) ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Role switcher — lives as an icon in the top bar. Switches the UI role for
