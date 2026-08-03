@@ -197,7 +197,7 @@ export class FleetService {
     });
 
     // 3. Record the check-in event (selfie + GPS + place name at shift start)
-    await this.app.prisma.checkIn.create({
+    const checkIn = await this.app.prisma.checkIn.create({
       data: {
         vehicleId,
         userId,
@@ -229,12 +229,17 @@ export class FleetService {
       this.app.log.warn({ err, vehicleId }, 'Failed to cache check-in location');
     }
 
-    this.emitVehicleCrewUpdate(updated);
+    this.emitVehicleCrewUpdate({
+      ...updated,
+      checkedInAt: checkIn.checkedInAt,
+      checkInLocationName: locationName,
+    });
     return {
       ...updated,
       checkInLocationName: locationName,
       checkInLat: location.lat,
       checkInLng: location.lng,
+      checkedInAt: checkIn.checkedInAt,
     };
   }
 
@@ -315,6 +320,30 @@ export class FleetService {
         }
       }),
     );
+
+    // Attach latest driver check-in time per vehicle (for "logged in since …")
+    const withDrivers = vehicles.filter((v) => v.currentDriverId);
+    if (withDrivers.length > 0) {
+      const latestByVehicle = await this.app.prisma.checkIn.findMany({
+        where: {
+          vehicleId: { in: withDrivers.map((v) => v.id) },
+          role: Role.DRIVER,
+        },
+        orderBy: { checkedInAt: 'desc' },
+        distinct: ['vehicleId'],
+        select: { vehicleId: true, checkedInAt: true, locationName: true },
+      });
+      const map = new Map(latestByVehicle.map((c) => [c.vehicleId, c]));
+      return vehicles.map((v) => {
+        const c = map.get(v.id);
+        if (!c) return v;
+        return {
+          ...v,
+          checkedInAt: c.checkedInAt,
+          checkInLocationName: c.locationName ?? v.lastLocationName,
+        };
+      });
+    }
 
     return vehicles;
   }
