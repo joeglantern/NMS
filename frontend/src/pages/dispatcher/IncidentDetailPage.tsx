@@ -1015,6 +1015,28 @@ export default function IncidentDetailPage() {
 
         {/* Right Column: Dispatch Panel */}
         <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+          {step >= 3 ? (
+          <div className="bg-white border border-surface-border rounded-xl shadow-sm p-8 flex flex-col items-center text-center gap-2">
+            {incident.status === 'RESOLVED' ? (
+              <>
+                <CheckCircle size={32} weight="fill" className="text-brand-green" />
+                <h3 className="font-semibold text-brand-teal">Case Resolved</h3>
+                <p className="text-sm text-slate-text max-w-xs">
+                  Dispatch actions are locked for closed cases. See the crew report below for the full dispatch history.
+                </p>
+              </>
+            ) : (
+              <>
+                <PaperPlaneRight size={32} weight="fill" className="text-brand-teal" />
+                <h3 className="font-semibold text-brand-teal">Vehicle Already Dispatched</h3>
+                <p className="text-sm text-slate-text max-w-xs">
+                  A crew is already assigned to this case. See the crew report below to track status, or use Reassign / Terminate to swap vehicles.
+                </p>
+              </>
+            )}
+          </div>
+          ) : (
+          <>
           <div className="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[400px]">
             <div className="px-6 py-4 border-b border-surface-border bg-slate-50 flex justify-between items-center">
               <h3 className="font-semibold text-brand-teal">Nearest Vehicles</h3>
@@ -1192,6 +1214,8 @@ export default function IncidentDetailPage() {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 
