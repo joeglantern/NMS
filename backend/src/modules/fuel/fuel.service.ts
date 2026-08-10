@@ -171,7 +171,7 @@ export class FuelService {
     }
   }
 
-  private async call(method: string, body: Record<string, unknown>): Promise<any> {
+  private async call(method: string, body: Record<string, unknown>, retrying = false): Promise<any> {
     if (!this.baseUrl) throw new Error('Uffizio is not configured (UFFIZIO_BASE_URL missing)');
 
     // Reuse the tracking poller's auth code — Uffizio rate-limits per account.
@@ -187,8 +187,17 @@ export class FuelService {
     const json: any = await res.json();
 
     // Uffizio reports rate limiting and other soft errors inside a 200 body.
-    if (json?.root?.error) throw new Error(`Uffizio: ${json.root.error}`);
-    if (json?.result === 0 && json?.message) throw new Error(`Uffizio: ${json.message}`);
+    const softError = json?.root?.error ?? (json?.result === 0 ? json?.message : null);
+    if (softError) {
+      // A cached auth code can be revoked by Uffizio independently of our own
+      // TTL guess. Drop it and retry once with a fresh one instead of surfacing
+      // an error to the user that a second click would have fixed anyway.
+      if (!retrying && /invalid token/i.test(String(softError))) {
+        this.app.tracking.invalidateAuthCode();
+        return this.call(method, body, true);
+      }
+      throw new Error(`Uffizio: ${softError}`);
+    }
     return json;
   }
 
@@ -305,6 +314,6 @@ export class FuelService {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    tracking: { getAuthCode(): Promise<string> };
+    tracking: { getAuthCode(): Promise<string>; invalidateAuthCode(): void };
   }
 }

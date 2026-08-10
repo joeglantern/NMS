@@ -65,6 +65,19 @@ export class TrackingService {
       return this.authCode;
     }
 
+    return this.refreshAuthCode();
+  }
+
+  /** Drops the cached token so the next getAuthCode() call re-authenticates.
+   *  Uffizio can revoke a token independently of our own TTL guess, so callers
+   *  that get an "Invalid Token" response should call this before retrying
+   *  rather than waiting out the rest of the 23h TTL. */
+  invalidateAuthCode(): void {
+    this.authCode = null;
+    this.authCodeExpiry = 0;
+  }
+
+  private async refreshAuthCode(): Promise<string> {
     const url = `${this.baseUrl}/webservice?token=generateAccessToken`;
 
     const res = await fetch(url, {
@@ -133,8 +146,11 @@ export class TrackingService {
 
     const body: any = await res.json();
 
-    // Uffizio returns its rate-limit complaint as a 200 with an error body.
+    // Uffizio returns its rate-limit complaint, and a revoked token, as a 200
+    // with an error body rather than an HTTP error — the 401 check above never
+    // fires for those, so a stale token here has to be caught explicitly too.
     if (body?.root?.error) {
+      if (/invalid token/i.test(String(body.root.error))) this.invalidateAuthCode();
       throw new Error(`Uffizio responded: ${body.root.error}`);
     }
 
@@ -190,6 +206,16 @@ export class TrackingService {
     }
 
     const body: any = await res.json();
+
+    // Uffizio reports a revoked/stale token as a 200 with an error body rather
+    // than HTTP 401, so it silently produced zero vehicles here before this
+    // check existed. Surface it as a real poll failure and drop the cached
+    // token so the next poll re-authenticates instead of repeating the error
+    // for up to the rest of the 23h TTL.
+    if (body?.root?.error) {
+      if (/invalid token/i.test(String(body.root.error))) this.invalidateAuthCode();
+      throw new Error(`Uffizio: ${body.root.error}`);
+    }
 
     // Log the raw structure once (first successful fetch) for field-mapping verification
     if (!this._loggedStructure) {

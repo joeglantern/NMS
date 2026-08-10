@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   CheckCircle, MapPin, PaperPlaneRight, ClipboardText,
   X, Phone, User, WarningCircle, FirstAid, ListChecks, XCircle,
-  ArrowRight, ArrowLeft, PencilSimple, Eye, ShieldWarning, Baby,
+  ArrowRight, ArrowLeft, PencilSimple, Eye, ShieldWarning, Baby, Buildings,
 } from '@phosphor-icons/react';
 import api from '../../api/client';
 import Map from '../../components/shared/Map';
@@ -319,6 +319,8 @@ export default function NewIncidentWizard() {
       : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   const places = usePlacesAutocomplete();
+  const facilityPlaces = usePlacesAutocomplete();
+  const [showFacilitySuggestions, setShowFacilitySuggestions] = useState(false);
   const [showEndReason, setShowEndReason]         = useState(false);
   const [endReason, setEndReason]                 = useState('');
   const [showSurveillance, setShowSurveillance]   = useState(false);
@@ -359,6 +361,30 @@ export default function NewIncidentWizard() {
     if (aIn !== bIn) return aIn ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
+
+  // Known facilities matching what's typed so far, capped for a manageable list.
+  const matchedFacilities = (
+    form.placeOfReferral.trim()
+      ? facilityOptions.filter(f => f.name.toLowerCase().includes(form.placeOfReferral.trim().toLowerCase()))
+      : facilityOptions
+  ).slice(0, 6);
+
+  // Referral facility search: known facilities first, Google Places as a
+  // fallback for any hospital or clinic that isn't in the admin-configured list.
+  useEffect(() => {
+    if (facilityPlaces.available) facilityPlaces.search(form.placeOfReferral);
+  }, [form.placeOfReferral]);
+
+  const selectGoogleFacility = async (placeId: string, description: string) => {
+    try {
+      const details = await facilityPlaces.getDetails(placeId);
+      set({ targetFacilityId: '', placeOfReferral: details.name || description.split(',').slice(0, 2).join(',').trim() });
+    } catch {
+      set({ targetFacilityId: '', placeOfReferral: description.split(',').slice(0, 2).join(',').trim() });
+    } finally {
+      setShowFacilitySuggestions(false);
+    }
+  };
 
 
 
@@ -766,30 +792,86 @@ export default function NewIncidentWizard() {
 
                 <Field>
                   <Label>Referral Facility</Label>
-                  <select
-                    className={selectCls}
-                    value={form.targetFacilityId}
-                    onChange={e => {
-                      const id = e.target.value;
-                      const f = facilities.find(x => x.id === id);
-                      // Keep placeOfReferral in sync with the chosen facility's
-                      // name — existing analytics/exports read that column.
-                      set({ targetFacilityId: id, placeOfReferral: f?.name ?? '' });
-                    }}
-                  >
-                    <option value="">— No referral facility —</option>
-                    {facilityOptions.map(f => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                        {f.type ? ` · ${f.type}` : ''}
-                        {f.subCounty ? ` · ${f.subCounty}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Type a facility name, or search Google for any hospital/clinic..."
+                      className={`${inputCls} pr-10`}
+                      value={form.placeOfReferral}
+                      onChange={e => {
+                        const v = e.target.value;
+                        // Free text clears any previously matched internal facility id
+                        // until the watcher picks a suggestion again.
+                        set({ targetFacilityId: '', placeOfReferral: v });
+                        setShowFacilitySuggestions(true);
+                        if (!v) facilityPlaces.clear();
+                      }}
+                      onFocus={() => setShowFacilitySuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowFacilitySuggestions(false), 150)}
+                      autoComplete="off"
+                    />
+                    {facilityPlaces.isLoading && (
+                      <div className="absolute right-3 top-3 w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {showFacilitySuggestions && (matchedFacilities.length > 0 || facilityPlaces.suggestions.length > 0) && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-72 overflow-y-auto rounded-xl shadow-xl overflow-hidden card">
+                        {form.placeOfReferral && (
+                          <button
+                            type="button"
+                            className="w-full text-left px-4 py-2.5 text-sm border-b border-[var(--border)] flex items-center gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                            onMouseDown={() => { set({ targetFacilityId: '', placeOfReferral: '' }); setShowFacilitySuggestions(false); }}
+                          >
+                            <X size={14} className="text-slate-400 shrink-0" />
+                            <span style={{ color: 'var(--muted)' }}>Clear referral facility</span>
+                          </button>
+                        )}
+                        {matchedFacilities.length > 0 && (
+                          <>
+                            <div className="px-4 py-1.5 text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--muted)', background: 'var(--surface-2)' }}>
+                              Known Facilities
+                            </div>
+                            {matchedFacilities.map(f => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                                onMouseDown={() => { set({ targetFacilityId: f.id, placeOfReferral: f.name }); setShowFacilitySuggestions(false); }}
+                              >
+                                <Buildings size={14} weight="fill" className="text-brand-teal mt-0.5 shrink-0" />
+                                <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>
+                                  {f.name}
+                                  {f.type ? ` · ${f.type}` : ''}
+                                  {f.subCounty ? ` · ${f.subCounty}` : ''}
+                                </span>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {facilityPlaces.available && facilityPlaces.suggestions.length > 0 && (
+                          <>
+                            <div className="px-4 py-1.5 text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--muted)', background: 'var(--surface-2)' }}>
+                              Search Google
+                            </div>
+                            {facilityPlaces.suggestions.map(s => (
+                              <button
+                                key={s.placeId}
+                                type="button"
+                                className="w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 flex items-start gap-3 transition-colors hover:bg-[var(--surface-2)]"
+                                onMouseDown={() => selectGoogleFacility(s.placeId, s.description)}
+                              >
+                                <MapPin size={14} weight="fill" className="text-brand-green mt-0.5 shrink-0" />
+                                <span className="font-medium leading-snug" style={{ color: 'var(--ink)' }}>{s.description}</span>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <Hint>
                     {facilities.length === 0
-                      ? 'No facilities configured yet — add them under Admin → Facilities.'
-                      : 'Facilities in the selected sub-county are listed first.'}
+                      ? 'No facilities configured yet, type to search any facility via Google.'
+                      : 'Facilities in the selected sub-county are listed first. Keep typing to search Google for any facility not in the list.'}
                   </Hint>
                 </Field>
               </SectionCard>
@@ -1113,7 +1195,9 @@ export default function NewIncidentWizard() {
                   <Hint>Be as specific as possible — this is what dispatchers see first.</Hint>
                 </Field>
 
-                {/* ── Patient Vitals ── */}
+                {/* Maternity cases record vitals under Maternal Well-being below, so the
+                    general set is only shown for other natures to avoid asking twice. */}
+                {!isMaternity && (
                 <div className="border-t pt-3" style={{ borderColor: 'var(--border)' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>Patient Vitals</p>
                   <div className="grid grid-cols-3 gap-3">
@@ -1143,6 +1227,7 @@ export default function NewIncidentWizard() {
                     </Field>
                   </div>
                 </div>
+                )}
 
                 <Field>
                   <Label>Caller / Watcher Notes</Label>
