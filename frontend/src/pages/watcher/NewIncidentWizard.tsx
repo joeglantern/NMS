@@ -25,7 +25,7 @@ const SUB_COUNTIES = [
 const ALERT_MODES = ['Phone', 'Radio', 'Walk-in', 'Other'];
 
 const ORIGIN_OPTIONS = [
-  'Community', 'Hospital', 'Police', 'Fire Department', 'Other EMS', 'Self-referral', 'Other',
+  'Community', 'Health Facility', 'Police', 'Fire Department', 'Other EMS', 'Self-referral', 'Other',
 ];
 
 // ── Style tokens ─────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="card overflow-hidden">
+    <div className="card">
       <div className="card-head">
         <div className="flex items-center gap-2.5">
           <Icon size={16} weight="fill" className="text-brand-green" />
