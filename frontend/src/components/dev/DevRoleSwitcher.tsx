@@ -25,6 +25,8 @@ const ROLE_COLORS: Record<Role, string> = {
   NURSE: 'bg-pink-600',
 };
 
+const ALL_ROLES: Role[] = Object.keys(ROLE_ROUTES) as Role[];
+
 export default function DevRoleSwitcher() {
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -32,10 +34,19 @@ export default function DevRoleSwitcher() {
 
   if (!user) return null;
 
-  const userRoles: Role[] = user.roles && user.roles.length > 0 ? user.roles : [user.role];
+  // Super admin can preview every role's view. RoleGuard always checks the
+  // real JWT role first, so switching activeRole here can never lock the
+  // account out of an admin-only page — it only opens up role-scoped ones.
+  const isSuperAdmin = user.role === 'SUPER_ADMIN' || (user.roles ?? []).includes('SUPER_ADMIN');
+
+  const userRoles: Role[] = isSuperAdmin
+    ? ALL_ROLES
+    : user.roles && user.roles.length > 0
+      ? user.roles
+      : [user.role];
   const activeRole: Role = user.activeRole || user.role || userRoles[0];
 
-  if (userRoles.length <= 1) return null;
+  if (!isSuperAdmin && userRoles.length <= 1) return null;
 
   const switchTo = async (role: Role) => {
     if (role === activeRole || switching) {
