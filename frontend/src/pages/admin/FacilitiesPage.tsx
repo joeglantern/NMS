@@ -507,7 +507,6 @@ export default function FacilitiesPage() {
                     zoom={pin ? 15 : 13}
                     markers={pin ? [{ id: 'pin', lat: pin.lat, lng: pin.lng, title: form.name || 'Facility', type: 'facility' }] : []}
                     onLocationSelect={handleMapClick}
-                    layerType="light"
                     className="h-full w-full"
                   />
                 </div>

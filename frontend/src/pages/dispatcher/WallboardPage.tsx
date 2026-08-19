@@ -13,6 +13,7 @@ import { useVehicleTracking } from '../../hooks/useVehicleTracking';
 // used below to build the vehicle lookup.
 import OpsMap from '../../components/shared/Map';
 import { fmtDate, fmtTime } from '../../lib/datetime';
+import { useTheme } from '../../hooks/useTheme';
 
 const NAIROBI_CENTER: [number, number] = [-1.2921, 36.8219];
 const TRACKER_STALE_MS = 5 * 60 * 1000; // no fix in 5 min → treat as "no signal"
@@ -121,7 +122,10 @@ function AmbulanceCard({ vehicle, live }: { vehicle: Vehicle; live?: { timestamp
 
 export default function WallboardPage() {
   const queryClient = useQueryClient();
-  const [mapLayer, setMapLayer] = useState<'light' | 'dark' | 'street'>('light');
+  const appTheme = useTheme();
+  // Seeded from the app theme so the map isn't a bright square on a dark
+  // wallboard; the Stack button below still lets the operator cycle it manually.
+  const [mapLayer, setMapLayer] = useState<'light' | 'dark' | 'street'>(appTheme);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   // All active vehicles + crew — the source of truth for "ambulances / drivers / EMTs on duty".

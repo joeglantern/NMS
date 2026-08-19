@@ -881,7 +881,6 @@ export default function NewIncidentWizard() {
                     zoom={14}
                     markers={[{ id: 'scene', lat: form.lat, lng: form.lng, title: form.locationName || 'Scene', type: 'incident' }]}
                     onLocationSelect={handleMapClick}
-                    layerType="street"
                     className="h-80 w-full"
                   />
                   {form.locationName && !isReverseGeocoding && (

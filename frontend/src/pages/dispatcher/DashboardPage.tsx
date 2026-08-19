@@ -9,10 +9,13 @@ import { socket } from '../../lib/socket';
 import Map from '../../components/shared/Map';
 import { useVehicleTracking, LiveVehicle } from '../../hooks/useVehicleTracking';
 import VehicleDispatchPanel from '../../components/shared/VehicleDispatchPanel';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [mapLayer, setMapLayer] = useState<'light' | 'dark' | 'street'>('light');
+  const appTheme = useTheme();
+  // Seeded from the app theme; the Stack button still lets the dispatcher cycle it manually.
+  const [mapLayer, setMapLayer] = useState<'light' | 'dark' | 'street'>(appTheme);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [clickedVehicle, setClickedVehicle] = useState<LiveVehicle | null>(null);
 

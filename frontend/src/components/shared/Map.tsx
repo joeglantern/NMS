@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { loadMapsLibrary, mapsReady } from '../../lib/mapsLoader';
 import { LiveVehicle, VehicleTrackingStatus, getVehicleTrackingStatus } from '../../hooks/useVehicleTracking';
+import { useTheme } from '../../hooks/useTheme';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -629,7 +630,7 @@ export default function Map({
   markers = [],
   vehicleMarkers = [],
   className = 'h-full w-full',
-  layerType = 'light',
+  layerType,
   onLocationSelect,
   onVehicleClick,
   showLegend = false,
@@ -643,6 +644,13 @@ export default function Map({
   const [flyTarget, setFlyTarget] = useState<[number, number, number] | null>(null);
   const [googleFailed, setGoogleFailed] = useState(false);
   const useGoogle = mapsReady && !googleFailed;
+
+  // Callers that care about a specific tile style (a manual light/dark/street
+  // toggle, or a deliberately-always-dark ops panel) pass layerType explicitly.
+  // Everyone else falls back to the app's current theme so the map doesn't
+  // stay a bright white square on an otherwise dark page.
+  const appTheme = useTheme();
+  const effectiveLayer = layerType ?? (appTheme === 'dark' ? 'dark' : 'light');
 
   const focusLat = focusPosition?.[0];
   const focusLng = focusPosition?.[1];
@@ -667,12 +675,12 @@ export default function Map({
     <div className={`relative z-0 ${className}`}>
       {useGoogle ? (
         <GoogleCanvas
-          key={`gmap-${layerType === 'dark' ? 'dark' : 'light'}`}
+          key={`gmap-${effectiveLayer === 'dark' ? 'dark' : 'light'}`}
           center={center}
           zoom={zoom}
           markers={markers}
           vehicleMarkers={vehicleMarkers}
-          layerType={layerType}
+          layerType={effectiveLayer}
           onLocationSelect={onLocationSelect}
           onVehicleMarkerClick={handleVehicleMarkerClick}
           suppressVehiclePopup={!!onVehicleClick}
@@ -685,7 +693,7 @@ export default function Map({
           zoom={zoom}
           markers={markers}
           vehicleMarkers={vehicleMarkers}
-          layerType={layerType}
+          layerType={effectiveLayer}
           onLocationSelect={onLocationSelect}
           onVehicleClick={onVehicleClick}
           onVehicleMarkerClick={handleVehicleMarkerClick}
