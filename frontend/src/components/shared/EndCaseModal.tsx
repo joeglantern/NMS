@@ -16,6 +16,7 @@ interface Props {
 }
 
 const REASON_PRESETS = [
+  'Completed',
   'Patient Received',
   'Referral Declined',
   'Died on Transit',
