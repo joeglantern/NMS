@@ -25,6 +25,14 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+// Rough ETA from a straight-line distance — assumes an average urban response
+// speed (traffic + lights factored in loosely). Not a routed/live-traffic ETA;
+// good enough for triaging which "Ready" unit to dispatch.
+const AVG_RESPONSE_KMH = 35;
+function estimateEtaMinutes(km: number): number {
+  return Math.max(1, Math.round((km / AVG_RESPONSE_KMH) * 60));
+}
+
 // Friendly labels for the crew's hospital-handover vitals (stored on Task.handoverVitals).
 const HANDOVER_VITAL_LABELS: Record<string, string> = {
   temperature: 'Temperature',
@@ -70,6 +78,8 @@ export default function IncidentDetailPage() {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignReason, setReassignReason] = useState('');
   const [reassignVehicleId, setReassignVehicleId] = useState('');
+  const [showChangeFacilityModal, setShowChangeFacilityModal] = useState(false);
+  const [changeFacilityId, setChangeFacilityId] = useState('');
 
   // Fetch Incident
   const { data: incident, isLoading } = useQuery({
@@ -1032,6 +1042,13 @@ export default function IncidentDetailPage() {
                 <p className="text-sm text-slate-text max-w-xs">
                   A crew is already assigned to this case. See the crew report below to track status, or use Reassign / Terminate to swap vehicles.
                 </p>
+                <button
+                  onClick={() => { setChangeFacilityId(incident.targetFacilityId ?? ''); setShowChangeFacilityModal(true); }}
+                  className="mt-2 flex items-center gap-2 px-4 py-2 border border-surface-border text-brand-teal text-sm font-medium rounded-lg hover:bg-slate-50 transition-all"
+                >
+                  <Buildings size={16} weight="fill" />
+                  Change Referral Facility
+                </button>
               </>
             )}
           </div>
@@ -1051,11 +1068,14 @@ export default function IncidentDetailPage() {
                   <tr className="bg-slate-50">
                     <th className="px-6 py-3 text-xs font-medium text-slate-text">Unit</th>
                     <th className="px-6 py-3 text-xs font-medium text-slate-text">Status</th>
+                    <th className="px-6 py-3 text-xs font-medium text-slate-text">Time to Scene</th>
                     <th className="px-6 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {nearestVehicles.map(v => (
+                  {nearestVehicles.map(v => {
+                    const km = (v as { distanceKm?: number }).distanceKm;
+                    return (
                     <tr key={v.id} className={`border-b border-surface-border hover:bg-slate-50 cursor-pointer transition-colors ${selectedVehicleId === v.id ? 'bg-brand-green/5' : ''}`} onClick={() => setSelectedVehicleId(v.id)}>
                       <td className="px-6 py-3">
                         <p className="font-semibold text-brand-teal text-sm">{v.registrationNumber}</p>
@@ -1070,14 +1090,25 @@ export default function IncidentDetailPage() {
                           Ready
                         </span>
                       </td>
+                      <td className="px-6 py-3">
+                        {km != null ? (
+                          <>
+                            <p className="text-sm font-semibold text-brand-teal">~{estimateEtaMinutes(km)} min</p>
+                            <p className="text-xs text-slate-text mt-0.5">{km.toFixed(1)} km</p>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-text">—</span>
+                        )}
+                      </td>
                       <td className="px-6 py-3 text-right">
                         <CaretRight size={16} className="text-slate-text" />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {nearestVehicles.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-6 py-6 text-center text-sm text-slate-text">No vehicles with a driver available nearby.</td>
+                      <td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-text">No vehicles with a driver available nearby.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1724,6 +1755,56 @@ export default function IncidentDetailPage() {
                 className="px-5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {reassignMutation.isPending ? 'Working...' : reassignVehicleId ? 'Reassign Crew' : 'Terminate Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangeFacilityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl border border-surface-border w-full max-w-md mx-4 p-6 flex flex-col gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-brand-teal">Change Referral Facility</h3>
+              <p className="text-sm text-slate-text mt-1">
+                The crew is already dispatched — this only updates where the case record says the patient is being taken, so hand-off and reporting stay accurate.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-1.5">Referral Facility</label>
+              <select
+                autoFocus
+                value={changeFacilityId}
+                onChange={e => setChangeFacilityId(e.target.value)}
+                className="w-full border border-surface-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-green transition-all"
+              >
+                <option value="">— No referral facility —</option>
+                {facilitiesByDistance.map(({ facility, km, inRegion }) => (
+                  <option key={facility.id} value={facility.id}>
+                    {inRegion ? '★ ' : ''}{facility.name} · {facility.type}{km != null ? ` · ~${km.toFixed(1)} km` : ''}{inRegion ? ` · ${facility.subCounty}` : ''}
+                  </option>
+                ))}
+              </select>
+              {!scenePoint && (
+                <p className="text-[11px] text-amber-500 mt-1">Scene has no coordinates, so distances can't be shown.</p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowChangeFacilityModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => updateMutation.mutate(
+                  { targetFacilityId: changeFacilityId },
+                  { onSuccess: () => setShowChangeFacilityModal(false) }
+                )}
+                disabled={updateMutation.isPending || changeFacilityId === (incident.targetFacilityId ?? '')}
+                className="px-5 py-2 bg-brand-teal text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
