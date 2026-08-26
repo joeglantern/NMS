@@ -622,3 +622,19 @@ model SmsTemplate {
 
   @@map("sms_templates")
 }
+
+// One-time codes for mobile phone login (DRIVER / EMT only — see auth.service.ts).
+// Codes are hashed at rest, short-lived, and attempt-limited. Rows are cheap to
+// keep around for audit; a periodic cleanup job can prune old rows if needed.
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String                                     // normalized MSISDN, e.g. 2547XXXXXXXX
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([phone, createdAt])
+  @@map("otp_codes")
+}
