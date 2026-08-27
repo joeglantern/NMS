@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { AgencyType, Role } from '../../shared/types/index.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../shared/errors/AppError.js';
 import { hashPassword } from '../../shared/utils/hash.js';
+import { normalizeMsisdn } from '../sms/sms.service.js';
 
 export class AdminService {
   constructor(private app: FastifyInstance) {}
@@ -57,8 +58,11 @@ export class AdminService {
     if (!agency) throw new BadRequestError('Invalid agency ID');
 
     const passwordHash = await hashPassword(data.passwordRaw);
+    // Normalize to 254XXXXXXXXX so OTP login (exact-match lookup) finds this
+    // user regardless of the format the admin typed the number in.
+    const phone = data.phone ? normalizeMsisdn(data.phone) ?? data.phone : data.phone;
     return this.app.prisma.user.create({
-      data: { email: data.email, passwordHash, name: data.name, role: data.role, agencyId: data.agencyId, phone: data.phone },
+      data: { email: data.email, passwordHash, name: data.name, role: data.role, agencyId: data.agencyId, phone },
       select: { id: true, name: true, email: true, role: true, agencyId: true, createdAt: true },
     });
   }
@@ -78,10 +82,16 @@ export class AdminService {
       if (existing) throw new ConflictError('A user with this email already exists');
     }
 
-    const { password, ...rest } = data;
+    const { password, phone, ...rest } = data;
     return this.app.prisma.user.update({
       where: { id },
-      data: { ...rest, ...(password ? { passwordHash: await hashPassword(password) } : {}) },
+      data: {
+        ...rest,
+        // Normalize to 254XXXXXXXXX so OTP login (exact-match lookup) finds
+        // this user regardless of the format the admin typed the number in.
+        ...(phone !== undefined ? { phone: normalizeMsisdn(phone) ?? phone } : {}),
+        ...(password ? { passwordHash: await hashPassword(password) } : {}),
+      },
       select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, agencyId: true },
     });
   }

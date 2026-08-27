@@ -44,6 +44,9 @@ export class AuthService {
     const passwordHash = await hashPassword(data.passwordRaw);
 
     // 4. Create user
+    // Normalize the phone to 254XXXXXXXXX so OTP login (exact-match lookup)
+    // finds this user regardless of the format it was typed in.
+    const phone = data.phone ? normalizeMsisdn(data.phone) ?? data.phone : data.phone;
     const user = await this.app.prisma.user.create({
       data: {
         email: data.email,
@@ -51,7 +54,7 @@ export class AuthService {
         name: data.name,
         role: data.role,
         agencyId: data.agencyId,
-        phone: data.phone,
+        phone,
       },
       select: {
         id: true,
