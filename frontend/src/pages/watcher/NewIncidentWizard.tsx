@@ -25,7 +25,8 @@ const SUB_COUNTIES = [
 const ALERT_MODES = ['Phone', 'Radio', 'Walk-in', 'Other'];
 
 const ORIGIN_OPTIONS = [
-  'Community', 'Health Facility', 'Police', 'Fire Department', 'Other EMS', 'Self-referral', 'Other',
+  'Community', 'Health Facility', 'National Dispatch (SHA)', 'Police', 'Fire Department',
+  'Other EMS', 'Self-referral', 'Other',
 ];
 
 // ── Style tokens ─────────────────────────────────────────────────────────────

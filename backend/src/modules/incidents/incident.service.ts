@@ -320,19 +320,47 @@ export class IncidentService {
     if (filters.to) range.lte = this.nairobiDayBoundary(filters.to, 'end');
     if (range.gte || range.lte) whereClause.createdAt = range;
 
-    return this.app.prisma.incident.findMany({
+    const incidents = await this.app.prisma.incident.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
-        targetFacility: { select: { name: true } },
-        // Lets the export's "Ambulance used" column fall back to the tracked
-        // vehicle's registration when no free-text value was recorded.
+        targetFacility: { select: { name: true, kephLevel: true } },
+        watcher: { select: { name: true } },
+        dispatcher: { select: { name: true } },
+        assignedAgency: { select: { name: true } },
+        forwardingLogs: {
+          select: { reason: true, toAgency: { select: { name: true } } },
+          orderBy: { createdAt: 'asc' },
+        },
+        gbvReport: true,
+        // Newest first: the report describes the latest dispatch, and
+        // "Ambulance used" falls back to the tracked vehicle's registration
+        // when no free-text value was recorded.
         tasks: {
-          select: { vehicle: { select: { registrationNumber: true } } },
+          include: {
+            vehicle: { select: { registrationNumber: true } },
+            driver: { select: { name: true } },
+            emt: { select: { name: true } },
+            nurse: { select: { name: true } },
+            stops: { select: { name: true }, orderBy: { sequence: 'asc' } },
+            _count: { select: { patientCareReports: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
     });
+
+    // closedById has no relation in the schema, so the names are looked up here.
+    const closerIds = [...new Set(incidents.map((i) => i.closedById).filter((v): v is string => !!v))];
+    const closers = closerIds.length
+      ? await this.app.prisma.user.findMany({ where: { id: { in: closerIds } }, select: { id: true, name: true } })
+      : [];
+    const closerName = new Map(closers.map((u) => [u.id, u.name]));
+
+    return incidents.map((i) => ({
+      ...i,
+      closedBy: i.closedById ? { name: closerName.get(i.closedById) ?? '' } : null,
+    }));
   }
 
   async getIncidentById(id: string) {

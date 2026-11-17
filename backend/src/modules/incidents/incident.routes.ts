@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { IncidentService } from './incident.service.js';
+import { asDate, buildIncidentReportCsv } from './incident-export.js';
 import { requireRole } from '../../shared/guards/requireRole.js';
 import { IncidentStatus, Role } from '../../shared/types/index.js';
 import { BadRequestError } from '../../shared/errors/AppError.js';
@@ -166,7 +167,8 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
 
   /**
    * GET /incidents/export — EOC incident report as CSV (opens directly in Excel).
-   * One row per alert, newest first, matching the legacy "EOC System" export columns.
+   * One row per alert, newest first. The legacy "EOC System" columns come first,
+   * then every other captured field (see incident-export.ts).
    * Restricted to dispatch/command roles; supports optional status + date range.
    */
   app.get<{ Querystring: { status?: IncidentStatus; from?: string; to?: string } }>(
@@ -179,58 +181,7 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
         to: request.query.to,
       });
 
-      // All EOC timestamps are Nairobi wall-clock. The previous implementation
-      // used d.getDate()/d.getHours(), which is the SERVER's local timezone —
-      // on a UTC host every exported time was 3 hours behind the real one.
-      const NBO = 'Africa/Nairobi';
-      const partsOf = (d: Date) => {
-        const p = new Intl.DateTimeFormat('en-GB', {
-          timeZone: NBO,
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-        }).formatToParts(d);
-        const get = (t: string) => p.find(x => x.type === t)?.value ?? '';
-        return { y: get('year'), m: get('month'), d: get('day'), hh: get('hour'), mm: get('minute') };
-      };
-      const asDate = (d: Date) => { const p = partsOf(d); return `${p.d}/${p.m}/${p.y}`; };
-      // The legacy sheet's "Alert Time" column holds a full timestamp
-      // (e.g. 2026-07-29T12:08), not just the clock time.
-      const asStamp = (d: Date) => { const p = partsOf(d); return `${p.y}-${p.m}-${p.d}T${p.hh}:${p.mm}`; };
-      // RFC-4180 escaping: wrap in quotes and double any embedded quotes.
-      const cell = (v: unknown) => {
-        const s = v == null ? '' : String(v);
-        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      };
-
-      const headers = [
-        'No', 'Date', 'Alert Time', 'Nature of Alert', 'Incidence Location',
-        'Referral Place', 'Ambulance used', 'Case Outcome',
-      ];
-
-      const lines = [headers.join(',')];
-      incidents.forEach((inc, i) => {
-        const when = inc.alertAt ?? inc.createdAt;
-        const nature = [inc.alertNature, inc.alertNatureDetail].filter(Boolean).join(' — ');
-        const referral = inc.targetFacility?.name ?? inc.placeOfReferral ?? '';
-        // "Ambulance used": the free-text field is set both by offline/partner
-        // dispatches and by manual entry; fall back to the tracked vehicle's
-        // registration from the dispatched task when it's a GPS unit.
-        const taskVehicle = inc.tasks?.find(t => t.vehicle?.registrationNumber)?.vehicle?.registrationNumber;
-        const ambulance = inc.ambulanceUsed ?? taskVehicle ?? '';
-        lines.push([
-          i + 1,
-          asDate(new Date(when)),
-          asStamp(new Date(when)),
-          nature,
-          inc.locationName,
-          referral,
-          ambulance,
-          inc.closureReason ?? '',
-        ].map(cell).join(','));
-      });
-
-      // Prepend a UTF-8 BOM so Excel renders accented/special characters correctly.
-      const csv = '﻿' + lines.join('\r\n');
+      const csv = buildIncidentReportCsv(incidents);
       const stamp = asDate(new Date()).replace(/\//g, '-');
       return reply
         .header('Content-Type', 'text/csv; charset=utf-8')
