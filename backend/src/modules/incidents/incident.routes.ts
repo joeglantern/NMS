@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { IncidentService } from './incident.service.js';
-import { asDate, buildIncidentReportCsv } from './incident-export.js';
+import { asDate, asLocalDateTime, buildFeedReportPdf, buildFeedReportXlsx, buildFullExportXlsx } from './incident-export.js';
 import { requireRole } from '../../shared/guards/requireRole.js';
 import { IncidentStatus, Role } from '../../shared/types/index.js';
 import { BadRequestError } from '../../shared/errors/AppError.js';
@@ -165,28 +165,55 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
     }
   );
 
+  const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const fileStamp = () => asDate(new Date()).replace(/\//g, '-');
+
   /**
-   * GET /incidents/export — EOC incident report as CSV (opens directly in Excel).
-   * One row per alert, newest first. The legacy "EOC System" columns come first,
-   * then every other captured field (see incident-export.ts).
-   * Restricted to dispatch/command roles; supports optional status + date range.
+   * GET /incidents/export?format=xlsx|pdf: the incident feed report.
+   * One row per alert, newest first, with the seven indicators the EOC asked for.
+   * Honours the feed's status and date filters.
    */
-  app.get<{ Querystring: { status?: IncidentStatus; from?: string; to?: string } }>(
+  app.get<{ Querystring: { format?: string; status?: IncidentStatus; from?: string; to?: string } }>(
     '/export',
     { preValidation: [requireRole([Role.DISPATCHER, Role.ADMIN, Role.SUPER_ADMIN])] },
     async (request, reply) => {
-      const incidents = await incidentService.getIncidentsForExport({
-        status: request.query.status,
-        from: request.query.from,
-        to: request.query.to,
-      });
+      const format = request.query.format ?? 'xlsx';
+      if (format !== 'xlsx' && format !== 'pdf') throw new BadRequestError('format must be xlsx or pdf');
+      const { status, from, to } = request.query;
 
-      const csv = buildIncidentReportCsv(incidents);
-      const stamp = asDate(new Date()).replace(/\//g, '-');
+      const incidents = await incidentService.getIncidentsForFeedReport({ status, from, to });
+      await incidentService.recordExport(request.user.userId, 'FEED_REPORT', { format, status, from, to, cases: incidents.length });
+
+      if (format === 'pdf') {
+        const range = from || to ? `${from ?? 'the start'} to ${to ?? 'today'}` : 'All dates';
+        const subtitle = `${range}. ${status ? `Status ${status}. ` : ''}${incidents.length} cases. Generated ${asLocalDateTime(new Date())}, Nairobi time.`;
+        return reply
+          .header('Content-Type', 'application/pdf')
+          .header('Content-Disposition', `attachment; filename="EOC_Incident_Report_${fileStamp()}.pdf"`)
+          .send(await buildFeedReportPdf(incidents, subtitle));
+      }
       return reply
-        .header('Content-Type', 'text/csv; charset=utf-8')
-        .header('Content-Disposition', `attachment; filename="EOC_Incident_Report_${stamp}.csv"`)
-        .send(csv);
+        .header('Content-Type', XLSX)
+        .header('Content-Disposition', `attachment; filename="EOC_Incident_Report_${fileStamp()}.xlsx"`)
+        .send(await buildFeedReportXlsx(incidents));
+    }
+  );
+
+  /**
+   * GET /incidents/export/all: every captured field for every case, as Excel.
+   * Admins only: it carries patient and GBV details.
+   */
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/export/all',
+    { preValidation: [requireRole([Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const { from, to } = request.query;
+      const incidents = await incidentService.getIncidentsForFullExport({ from, to });
+      await incidentService.recordExport(request.user.userId, 'FULL_EXPORT', { from, to, cases: incidents.length });
+      return reply
+        .header('Content-Type', XLSX)
+        .header('Content-Disposition', `attachment; filename="EOC_All_Case_Data_${fileStamp()}.xlsx"`)
+        .send(await buildFullExportXlsx(incidents));
     }
   );
 

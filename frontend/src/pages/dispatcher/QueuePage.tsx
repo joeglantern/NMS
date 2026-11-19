@@ -55,7 +55,7 @@ export default function QueuePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<'pdf' | 'xlsx' | null>(null);
   const [rangePreset, setRangePreset] = useState<RangePreset>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -71,13 +71,14 @@ export default function QueuePage() {
   );
   const rangeActive = !!from || !!to;
 
-  async function exportReport() {
-    setExporting(true);
+  async function exportReport(format: 'pdf' | 'xlsx') {
+    setExporting(format);
     try {
       const res = await api.get('/incidents/export', {
         responseType: 'blob',
-        // The export honours the same filters shown on screen.
+        // The report honours the same filters shown on screen.
         params: {
+          format,
           ...(statusFilter === 'ALL' ? {} : { status: statusFilter }),
           ...(from ? { from } : {}),
           ...(to ? { to } : {}),
@@ -86,14 +87,14 @@ export default function QueuePage() {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `EOC_Incident_Report_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `EOC_Incident_Report_${nairobiToday()}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
-      addNotification({ type: 'success', title: 'Exported', message: 'Incident report downloaded.' });
+      addNotification({ type: 'success', title: 'Report downloaded', message: format === 'pdf' ? 'Saved as a PDF.' : 'Saved as an Excel file.' });
     } catch {
-      addNotification({ type: 'error', title: 'Export failed', message: 'Could not generate the report.' });
+      addNotification({ type: 'error', title: 'Report not downloaded', message: 'Could not generate the report. Try again, or pick a shorter date range.' });
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -158,9 +159,15 @@ export default function QueuePage() {
           <div className="muted" style={{ fontSize: 13.5, marginTop: 3 }}>Live incident management and dispatch tracking</div>
         </div>
         {canExport && (
-          <button className="btn btn-ghost" onClick={exportReport} disabled={exporting}>
-            <DownloadSimple size={16} /> {exporting ? 'Exporting…' : 'Export Report'}
-          </button>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <span className="muted" style={{ fontSize: 13 }}>Download report</span>
+            <button className="btn btn-ghost" onClick={() => exportReport('pdf')} disabled={exporting !== null}>
+              <DownloadSimple size={16} /> {exporting === 'pdf' ? 'Preparing…' : 'PDF'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => exportReport('xlsx')} disabled={exporting !== null}>
+              <DownloadSimple size={16} /> {exporting === 'xlsx' ? 'Preparing…' : 'Excel'}
+            </button>
+          </div>
         )}
       </div>
 

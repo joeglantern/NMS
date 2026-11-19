@@ -1,10 +1,11 @@
 /**
- * Builds the EOC incident report CSV.
+ * Builds the two EOC incident downloads.
  *
- * The first eight columns are the legacy "EOC System" sheet, in its order, so
- * anything built on the old export keeps reading the same positions. Every
- * other captured field follows.
+ * - The incident feed report: seven columns the EOC asked for, as Excel or PDF.
+ * - The full export: every captured field, as Excel.
  */
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 const NBO = 'Africa/Nairobi';
 
@@ -49,24 +50,15 @@ function asDateTime(v: unknown): string {
   return `${p.y}-${p.m}-${p.d} ${p.hh}:${p.mm}`;
 }
 
-const yesNo = (v: unknown) => (v == null ? '' : v ? 'Yes' : 'No');
-
-/**
- * One CSV cell.
- * - Phone numbers and IDs are written as ="0712345678" so Excel keeps the
- *   leading zero or plus sign instead of turning them into a number.
- * - Text that would run as a formula (starts with = + - @) gets a leading
- *   apostrophe; these cells hold text typed by callers and crews.
- */
-export function cell(v: unknown): string {
-  let s = v == null ? '' : String(v);
-  if (/^(\+\d{6,}|0\d{5,}|\d{12,})$/.test(s)) {
-    s = `="${s}"`;
-  } else if (/^[=+\-@]/.test(s) && !/^[+-]?\d+(\.\d+)?$/.test(s)) {
-    s = `'${s}`;
-  }
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+/** "19/11/2026 09:30", the way the EOC writes dates. */
+export function asLocalDateTime(v: unknown): string {
+  const d = toDate(v);
+  if (!d) return '';
+  const p = partsOf(d);
+  return `${p.d}/${p.m}/${p.y} ${p.hh}:${p.mm}`;
 }
+
+const yesNo = (v: unknown) => (v == null ? '' : v ? 'Yes' : 'No');
 
 const VITALS: Array<[string, string]> = [
   ['temperature', 'Temperature'],
@@ -134,6 +126,27 @@ function primaryTask(inc: any) {
 const notifiers = (inc: any): Array<Record<string, any>> =>
   Array.isArray(inc.notifierDetails) ? inc.notifierDetails.map(obj) : [];
 
+const referralPlace = (inc: any) => inc.targetFacility?.name ?? inc.placeOfReferral ?? '';
+
+// The free-text field is set by offline/partner dispatches and manual entry;
+// fall back to the tracked vehicle's registration when it's a GPS unit.
+const ambulanceUsed = (inc: any) =>
+  inc.ambulanceUsed ??
+  primaryTask(inc)?.vehicle?.registrationNumber ??
+  (inc.tasks ?? []).find((t: any) => t.vehicle?.registrationNumber)?.vehicle?.registrationNumber ??
+  '';
+
+/** The incident feed report, exactly the indicators the EOC listed. */
+const SUMMARY_COLUMNS: Column[] = [
+  { header: 'Date and time', value: (inc) => asLocalDateTime(inc.alertAt ?? inc.createdAt) },
+  { header: 'Nature of alert', value: (inc) => inc.alertNature },
+  { header: 'Specific nature', value: (inc) => inc.alertNatureDetail },
+  { header: 'Location of incident', value: (inc) => inc.locationName },
+  { header: 'Place of referral', value: referralPlace },
+  { header: 'Ambulance used', value: ambulanceUsed },
+  { header: 'Case outcome', value: (inc) => inc.closureReason },
+];
+
 const COLUMNS: Column[] = [
   // Legacy sheet, order unchanged.
   { header: 'No', value: (_inc, i) => i + 1 },
@@ -144,17 +157,8 @@ const COLUMNS: Column[] = [
     value: (inc) => [inc.alertNature, inc.alertNatureDetail].filter(Boolean).join(' — '),
   },
   { header: 'Incidence Location', value: (inc) => inc.locationName },
-  { header: 'Referral Place', value: (inc) => inc.targetFacility?.name ?? inc.placeOfReferral ?? '' },
-  {
-    // The free-text field is set by offline/partner dispatches and manual
-    // entry; fall back to the tracked vehicle's registration when it's a GPS unit.
-    header: 'Ambulance used',
-    value: (inc) =>
-      inc.ambulanceUsed ??
-      primaryTask(inc)?.vehicle?.registrationNumber ??
-      (inc.tasks ?? []).find((t: any) => t.vehicle?.registrationNumber)?.vehicle?.registrationNumber ??
-      '',
-  },
+  { header: 'Referral Place', value: referralPlace },
+  { header: 'Ambulance used', value: ambulanceUsed },
   { header: 'Case Outcome', value: (inc) => inc.closureReason ?? '' },
 
   // Case
@@ -274,13 +278,96 @@ const COLUMNS: Column[] = [
   { header: 'GBV: Comment', value: (inc) => inc.gbvReport?.comment },
 ];
 
-export const EXPORT_HEADERS = COLUMNS.map((c) => c.header);
+const text = (v: unknown) => (v == null ? '' : String(v));
 
-export function buildIncidentReportCsv(incidents: any[]): string {
-  const lines = [EXPORT_HEADERS.map(cell).join(',')];
-  incidents.forEach((inc, i) => {
-    lines.push(COLUMNS.map((c) => cell(c.value(inc, i))).join(','));
+function table(columns: Column[], incidents: any[]) {
+  return {
+    headers: columns.map((c) => c.header),
+    rows: incidents.map((inc, i) => columns.map((c) => c.value(inc, i))),
+  };
+}
+
+async function toXlsx(sheetName: string, columns: Column[], incidents: any[]): Promise<Buffer> {
+  const { headers, rows } = table(columns, incidents);
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
+  const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
+  ws.addRow(headers).font = { bold: true };
+  for (const r of rows) {
+    // Numbers stay numbers; everything else is written as text so phone
+    // numbers and IDs keep their leading zero or plus sign.
+    ws.addRow(r.map((v) => (typeof v === 'number' ? v : text(v))));
+  }
+  ws.columns.forEach((col, i) => {
+    const longest = rows.reduce((n, r) => Math.max(n, text(r[i]).length), headers[i].length);
+    col.width = Math.min(Math.max(longest + 2, 12), 48);
   });
-  // The BOM makes Excel read the file as UTF-8.
-  return '﻿' + lines.join('\r\n');
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+export const buildFeedReportXlsx = (incidents: any[]) => toXlsx('Incident report', SUMMARY_COLUMNS, incidents);
+export const buildFullExportXlsx = (incidents: any[]) => toXlsx('All case data', COLUMNS, incidents);
+
+// pdfkit's built-in Helvetica only covers Latin-1; anything else would print as garbage.
+const pdfSafe = (v: unknown) =>
+  text(v).replace(/[–—]/g, '-').replace(/[^\t\n\x20-\x7E\xA0-\xFF]/g, '?');
+
+/** The incident feed report as an A4 landscape PDF table. */
+export function buildFeedReportPdf(incidents: any[], subtitle: string): Promise<Buffer> {
+  const { headers, rows } = table(SUMMARY_COLUMNS, incidents);
+  const widths = [88, 118, 112, 150, 122, 80, 100];
+  const margin = 36, pad = 5;
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin, bufferPages: true });
+  const chunks: Buffer[] = [];
+  doc.on('data', (c: Buffer) => chunks.push(c));
+  const finished = new Promise<Buffer>((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+  const bottom = doc.page.height - margin - 16;
+
+  const drawRow = (cells: string[], y: number, header: boolean) => {
+    doc.font(header ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    const h = Math.max(...cells.map((c, i) => doc.heightOfString(c, { width: widths[i] - pad * 2 }))) + pad * 2;
+    if (header) doc.rect(margin, y, widths.reduce((a, b) => a + b, 0), h).fill('#eeeeec');
+    doc.fillColor('#141816');
+    let x = margin;
+    cells.forEach((c, i) => {
+      doc.text(c, x + pad, y + pad, { width: widths[i] - pad * 2 });
+      x += widths[i];
+    });
+    doc.moveTo(margin, y + h).lineTo(x, y + h).lineWidth(0.5).strokeColor('#cfcfcc').stroke();
+    return h;
+  };
+  const rowHeight = (cells: string[]) => {
+    doc.font('Helvetica').fontSize(9);
+    return Math.max(...cells.map((c, i) => doc.heightOfString(c, { width: widths[i] - pad * 2 }))) + pad * 2;
+  };
+
+  doc.font('Helvetica-Bold').fontSize(15).fillColor('#141816').text('Nairobi City County EOC: incident report', margin, margin);
+  doc.font('Helvetica').fontSize(9).fillColor('#4a524e').text(pdfSafe(subtitle), margin, doc.y + 4);
+  let y = doc.y + 12;
+  y += drawRow(headers, y, true);
+  for (const r of rows) {
+    const cells = r.map(pdfSafe);
+    if (y + rowHeight(cells) > bottom) {
+      doc.addPage();
+      y = margin;
+      y += drawRow(headers, y, true);
+    }
+    y += drawRow(cells, y, false);
+  }
+  if (rows.length === 0) {
+    doc.font('Helvetica').fontSize(10).fillColor('#4a524e').text('No cases match these filters.', margin, y + 12);
+  }
+
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(range.start + i);
+    doc.font('Helvetica').fontSize(8).fillColor('#69716d')
+      .text(`Page ${i + 1} of ${range.count}`, margin, doc.page.height - margin - 12, { lineBreak: false });
+  }
+  doc.end();
+  return finished;
 }

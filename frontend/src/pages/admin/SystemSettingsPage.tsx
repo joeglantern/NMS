@@ -181,6 +181,31 @@ export default function SystemSettingsPage() {
     },
   });
 
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
+  const [exportingAll, setExportingAll] = useState(false);
+
+  const handleExportAllCases = async () => {
+    setExportingAll(true);
+    try {
+      const res = await api.get('/incidents/export/all', {
+        responseType: 'blob',
+        params: { ...(exportFrom ? { from: exportFrom } : {}), ...(exportTo ? { to: exportTo } : {}) },
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `EOC_All_Case_Data_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addNotification({ type: 'success', title: 'Export complete', message: 'All case data saved as an Excel file.' });
+    } catch {
+      addNotification({ type: 'error', title: 'Export failed', message: 'Could not export the case data. Try a shorter date range.' });
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   const handleExportAuditLogs = async () => {
     try {
       const res = await api.get('/admin/audit-logs?limit=200');
@@ -351,6 +376,18 @@ export default function SystemSettingsPage() {
 
           <div className="bg-white rounded-xl p-5 border border-surface-border">
             <h4 className="font-semibold text-brand-teal mb-4">Data Management</h4>
+            <div className="p-3.5 bg-slate-50 rounded-lg border border-surface-border mb-3">
+              <p className="text-sm font-medium text-brand-teal">Export all case data</p>
+              <p className="text-xs text-slate-text mt-1">Everything entered for every case, in one Excel file. Leave the dates empty for all time.</p>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <input type="date" aria-label="From" className="input" style={{ height: 36, width: 150, fontSize: 13 }} value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
+                <span className="text-xs text-slate-text">to</span>
+                <input type="date" aria-label="To" className="input" style={{ height: 36, width: 150, fontSize: 13 }} value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
+                <button onClick={handleExportAllCases} disabled={exportingAll} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+                  <Download size={16} /> {exportingAll ? 'Preparing…' : 'Export to Excel'}
+                </button>
+              </div>
+            </div>
             <button
               onClick={handleExportAuditLogs}
               className="w-full flex items-center justify-between p-3.5 bg-slate-50 rounded-lg hover:bg-slate-100 transition-all text-brand-teal border border-surface-border"

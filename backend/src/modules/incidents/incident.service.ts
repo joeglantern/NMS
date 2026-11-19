@@ -303,25 +303,40 @@ export class IncidentService {
     };
   }
 
-  /**
-   * Flat incident log for the EOC Excel/CSV report. Unpaginated and ordered
-   * newest-first, joined to the target facility so the "Referral Place" column
-   * can prefer the assigned facility name over the free-text place of referral.
-   */
-  async getIncidentsForExport(filters: { status?: IncidentStatus; from?: string; to?: string }) {
+  private exportWhere(filters: { status?: IncidentStatus; from?: string; to?: string }) {
     const whereClause: any = {};
     if (filters.status) whereClause.status = filters.status;
-
-    // Range is applied against the alert time when present, else creation time.
-    // We filter on createdAt (always set) and treat alertAt as a display value.
+    // Filtered on createdAt (always set); alertAt is a display value.
     // Bare dates are resolved as Nairobi calendar days (see nairobiDayBoundary).
     const range: any = {};
     if (filters.from) range.gte = this.nairobiDayBoundary(filters.from, 'start');
     if (filters.to) range.lte = this.nairobiDayBoundary(filters.to, 'end');
     if (range.gte || range.lte) whereClause.createdAt = range;
+    return whereClause;
+  }
 
+  /**
+   * Rows for the incident feed report: newest first, joined only to what its
+   * seven columns need (the referral facility and the dispatched vehicle).
+   */
+  async getIncidentsForFeedReport(filters: { status?: IncidentStatus; from?: string; to?: string }) {
+    return this.app.prisma.incident.findMany({
+      where: this.exportWhere(filters),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        targetFacility: { select: { name: true } },
+        tasks: {
+          select: { status: true, vehicle: { select: { registrationNumber: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+  }
+
+  /** Rows for the full export: every captured field, with crew, forwarding and GBV report. */
+  async getIncidentsForFullExport(filters: { from?: string; to?: string }) {
     const incidents = await this.app.prisma.incident.findMany({
-      where: whereClause,
+      where: this.exportWhere(filters),
       orderBy: { createdAt: 'desc' },
       include: {
         targetFacility: { select: { name: true, kephLevel: true } },
@@ -333,9 +348,7 @@ export class IncidentService {
           orderBy: { createdAt: 'asc' },
         },
         gbvReport: true,
-        // Newest first: the report describes the latest dispatch, and
-        // "Ambulance used" falls back to the tracked vehicle's registration
-        // when no free-text value was recorded.
+        // Newest first: the export describes the latest dispatch.
         tasks: {
           include: {
             vehicle: { select: { registrationNumber: true } },
@@ -361,6 +374,13 @@ export class IncidentService {
       ...i,
       closedBy: i.closedById ? { name: closerName.get(i.closedById) ?? '' } : null,
     }));
+  }
+
+  /** Case data leaving the system is recorded: who, which download, which filters, how many cases. */
+  async recordExport(userId: string, kind: 'FEED_REPORT' | 'FULL_EXPORT', details: Record<string, unknown>) {
+    await this.app.prisma.auditLog.create({
+      data: { action: 'EXPORT', subjectType: 'INCIDENT', subjectId: kind, newValues: details as any, userId },
+    });
   }
 
   async getIncidentById(id: string) {
