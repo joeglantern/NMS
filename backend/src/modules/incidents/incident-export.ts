@@ -4,6 +4,7 @@
  * - The incident feed report: seven columns the EOC asked for, as Excel or PDF.
  * - The full export: every captured field, as Excel.
  */
+import { PassThrough } from 'node:stream';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
@@ -287,23 +288,53 @@ function table(columns: Column[], incidents: any[]) {
   };
 }
 
+/**
+ * Writes the sheet row by row and pauses every 200 rows, so a large export
+ * does not hold up dispatch requests on the same server while it builds.
+ * Empty cells are skipped, and column widths come from the first 300 rows.
+ */
 async function toXlsx(sheetName: string, columns: Column[], incidents: any[]): Promise<Buffer> {
-  const { headers, rows } = table(columns, incidents);
-  const wb = new ExcelJS.Workbook();
-  wb.created = new Date();
+  const headers = columns.map((c) => c.header);
+  const chunks: Buffer[] = [];
+  const sink = new PassThrough();
+  sink.on('data', (c: Buffer) => chunks.push(c));
+  const closed = new Promise<void>((resolve, reject) => {
+    sink.on('end', resolve);
+    sink.on('error', reject);
+  });
+
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: sink, useSharedStrings: false, useStyles: true });
   const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
-  ws.addRow(headers).font = { bold: true };
-  for (const r of rows) {
+
+  const widths = headers.map((h) => h.length);
+  incidents.slice(0, 300).forEach((inc, i) => {
+    columns.forEach((c, k) => {
+      widths[k] = Math.max(widths[k], text(c.value(inc, i)).length);
+    });
+  });
+  ws.columns = widths.map((w) => ({ width: Math.min(Math.max(w + 2, 12), 48) }));
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+
+  const head = ws.addRow(headers);
+  head.font = { bold: true };
+  head.commit();
+
+  for (let i = 0; i < incidents.length; i++) {
     // Numbers stay numbers; everything else is written as text so phone
     // numbers and IDs keep their leading zero or plus sign.
-    ws.addRow(r.map((v) => (typeof v === 'number' ? v : text(v))));
+    const cells = columns.map((c) => {
+      const v = c.value(incidents[i], i);
+      if (typeof v === 'number') return v;
+      return v == null || v === '' ? null : String(v);
+    });
+    ws.addRow(cells).commit();
+    if (i % 200 === 199) await new Promise((resume) => setImmediate(resume));
   }
-  ws.columns.forEach((col, i) => {
-    const longest = rows.reduce((n, r) => Math.max(n, text(r[i]).length), headers[i].length);
-    col.width = Math.min(Math.max(longest + 2, 12), 48);
-  });
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
-  return Buffer.from(await wb.xlsx.writeBuffer());
+
+  ws.commit();
+  await wb.commit();
+  await closed;
+  return Buffer.concat(chunks);
 }
 
 export const buildFeedReportXlsx = (incidents: any[]) => toXlsx('Incident report', SUMMARY_COLUMNS, incidents);

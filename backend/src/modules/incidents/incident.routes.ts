@@ -185,7 +185,9 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
       await incidentService.recordExport(request.user.userId, 'FEED_REPORT', { format, status, from, to, cases: incidents.length });
 
       if (format === 'pdf') {
-        const range = from || to ? `${from ?? 'the start'} to ${to ?? 'today'}` : 'All dates';
+        // 2026-11-14 -> 14/11/2026, matching the dates in the table below it.
+        const dmy = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.split('-').reverse().join('/') : d);
+        const range = from || to ? `${dmy(from) ?? 'The start'} to ${dmy(to) ?? 'today'}` : 'All dates';
         const subtitle = `${range}. ${status ? `Status ${status}. ` : ''}${incidents.length} cases. Generated ${asLocalDateTime(new Date())}, Nairobi time.`;
         return reply
           .header('Content-Type', 'application/pdf')

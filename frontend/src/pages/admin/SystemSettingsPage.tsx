@@ -195,7 +195,9 @@ export default function SystemSettingsPage() {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `EOC_All_Case_Data_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      // en-CA formats as YYYY-MM-DD; the date must be Nairobi's, not UTC's.
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(new Date());
+      a.download = `EOC_All_Case_Data_${today}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       addNotification({ type: 'success', title: 'Export complete', message: 'All case data saved as an Excel file.' });
@@ -380,10 +382,10 @@ export default function SystemSettingsPage() {
               <p className="text-sm font-medium text-brand-teal">Export all case data</p>
               <p className="text-xs text-slate-text mt-1">Everything entered for every case, in one Excel file. Leave the dates empty for all time.</p>
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                <input type="date" aria-label="From" className="input" style={{ height: 36, width: 150, fontSize: 13 }} value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
+                <input type="date" aria-label="From" className="input" style={{ height: 36, flex: '1 1 120px', minWidth: 0, padding: '0 8px', fontSize: 13 }} value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
                 <span className="text-xs text-slate-text">to</span>
-                <input type="date" aria-label="To" className="input" style={{ height: 36, width: 150, fontSize: 13 }} value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
-                <button onClick={handleExportAllCases} disabled={exportingAll} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+                <input type="date" aria-label="To" className="input" style={{ height: 36, flex: '1 1 120px', minWidth: 0, padding: '0 8px', fontSize: 13 }} value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
+                <button onClick={handleExportAllCases} disabled={exportingAll} className="btn btn-ghost btn-sm" style={{ flex: '1 1 100%' }}>
                   <Download size={16} /> {exportingAll ? 'Preparing…' : 'Export to Excel'}
                 </button>
               </div>
