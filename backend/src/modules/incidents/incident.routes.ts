@@ -220,6 +220,20 @@ export const incidentRoutes: FastifyPluginAsync = async (app: FastifyInstance) =
   );
 
   /**
+   * GET /incidents/export/all/count: how many cases the full export would hold
+   * for a period. Shown on the export screen before the download starts.
+   */
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/export/all/count',
+    { preValidation: [requireRole([Role.ADMIN, Role.SUPER_ADMIN])] },
+    async (request, reply) => {
+      const { from, to } = request.query;
+      const cases = await incidentService.countIncidentsForExport({ from, to });
+      return reply.send({ ok: true, data: { cases } });
+    }
+  );
+
+  /**
    * GET /incidents/:id
    */
   app.get<{ Params: { id: string } }>(

@@ -11,6 +11,8 @@ import {
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useAuthStore } from '../../stores/authStore';
+import ExportAllCasesDialog from '../../components/shared/ExportAllCasesDialog';
 
 interface AnalyticsData {
   total: number;
@@ -92,6 +94,10 @@ export default function AnalyticsPage() {
   const [preset, setPreset] = useState<Preset>('30d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [exportOpen, setExportOpen] = useState(false);
+  // The full export carries patient and GBV details, so only admins are offered it.
+  const role = useAuthStore((s) => s.user?.role);
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
   const { from, to } = useMemo(
     () => getDateRange(preset, customFrom, customTo),
@@ -156,10 +162,18 @@ export default function AnalyticsPage() {
           <div className="section-title" style={{ fontSize: 20 }}>Analytics Dashboard</div>
           <div className="muted" style={{ fontSize: 13.5, marginTop: 3 }}>Operational performance and incident data</div>
         </div>
-        <button className="btn btn-ghost" onClick={exportReport}>
-          <Download size={16} /> Export Report
-        </button>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost" onClick={exportReport}>
+            <Download size={16} /> Export Report
+          </button>
+          {isAdmin && (
+            <button className="btn btn-ghost" onClick={() => setExportOpen(true)}>
+              <Download size={16} /> Export all case data
+            </button>
+          )}
+        </div>
       </div>
+      {isAdmin && <ExportAllCasesDialog isOpen={exportOpen} onClose={() => setExportOpen(false)} />}
 
       {/* Date Range Picker */}
       <div className="card card-pad">

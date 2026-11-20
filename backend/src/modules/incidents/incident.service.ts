@@ -376,6 +376,11 @@ export class IncidentService {
     }));
   }
 
+  /** How many cases an export would carry, so the screen can say so before anything downloads. */
+  async countIncidentsForExport(filters: { from?: string; to?: string }) {
+    return this.app.prisma.incident.count({ where: this.exportWhere(filters) });
+  }
+
   /** Case data leaving the system is recorded: who, which download, which filters, how many cases. */
   async recordExport(userId: string, kind: 'FEED_REPORT' | 'FULL_EXPORT', details: Record<string, unknown>) {
     await this.app.prisma.auditLog.create({
