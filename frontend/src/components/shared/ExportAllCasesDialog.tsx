@@ -202,7 +202,7 @@ export default function ExportAllCasesDialog({ isOpen, onClose }: Props) {
               <span className="muted">No cases entered {period === 'all' ? 'yet' : `for ${describePeriod(from, to)}`}.</span>
             ) : (
               <>
-                <span className="mono" style={{ fontSize: 22, fontWeight: 650, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 22, fontWeight: 650, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em' }}>
                   {cases!.toLocaleString('en-KE')}
                 </span>
                 <span className="muted">
