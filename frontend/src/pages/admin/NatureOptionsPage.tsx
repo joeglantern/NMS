@@ -6,6 +6,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '../../stores/notificationStore';
 import api from '../../api/client';
+import { sortAZ } from '../../lib/sortOptions';
 
 interface NatureOption {
   id: string;
@@ -69,7 +70,7 @@ export default function NatureOptionsPage() {
     return acc;
   }, {});
 
-  const uniqueNatures = Object.keys(grouped).sort();
+  const uniqueNatures = sortAZ(Object.keys(grouped));
   const filteredNatures = uniqueNatures.filter(n =>
     n.toLowerCase().includes(search.toLowerCase()) ||
     grouped[n].details.some(d => d.detail?.toLowerCase().includes(search.toLowerCase()))

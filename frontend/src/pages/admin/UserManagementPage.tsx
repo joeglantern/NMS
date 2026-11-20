@@ -248,14 +248,14 @@ export default function UserManagementPage() {
               className="flex-1 bg-slate-50 border border-surface-border rounded-lg px-4 py-3 font-sans text-xs font-black uppercase tracking-widest text-brand-teal outline-none focus:ring-2 focus:ring-brand-green transition-all cursor-pointer"
             >
               <option value="ALL">All Roles</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
               <option value="ADMIN">Admin</option>
               <option value="DISPATCHER">Dispatcher</option>
-              <option value="WATCHER">Watcher</option>
-              <option value="PARTNER">Partner</option>
               <option value="DRIVER">Driver</option>
               <option value="EMT">EMT</option>
               <option value="NURSE">Nurse</option>
+              <option value="PARTNER">Partner</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+              <option value="WATCHER">Watcher</option>
             </select>
           </div>
           <div className="flex items-center gap-3 flex-1">
@@ -522,7 +522,7 @@ export default function UserManagementPage() {
                   value={editRoleValue}
                   onChange={e => setEditRoleValue(e.target.value as Role)}
                 >
-                  {(['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'WATCHER', 'PARTNER', 'DRIVER', 'EMT', 'NURSE'] as Role[]).map(r => (
+                  {(['ADMIN', 'DISPATCHER', 'DRIVER', 'EMT', 'NURSE', 'PARTNER', 'SUPER_ADMIN', 'WATCHER'] as Role[]).map(r => (
                     <option key={r} value={r}>{r.replace('_', ' ')}</option>
                   ))}
                 </select>

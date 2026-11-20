@@ -861,16 +861,30 @@ export class IncidentService {
         data: this.buildSeedRows(),
         skipDuplicates: true,
       });
-      return this.SEED_NATURES.map(({ nature, details }) => ({ nature, details }));
+      return this.natureOptionsAtoZ(this.SEED_NATURES.map(({ nature, details }) => ({ nature, details })));
     }
 
-    // Group into { nature, details[] } preserving the sortOrder-driven row order.
     const map = new Map<string, string[]>();
     for (const row of rows) {
       if (!map.has(row.nature)) map.set(row.nature, []);
       if (row.detail) map.get(row.nature)!.push(row.detail);
     }
-    return Array.from(map.entries()).map(([nature, details]) => ({ nature, details }));
+    return this.natureOptionsAtoZ(Array.from(map.entries()).map(([nature, details]) => ({ nature, details })));
+  }
+
+  /**
+   * The EOC asked for every dropdown A to Z. Natures and their specific
+   * natures are sorted ignoring case, with a catch-all "Other" kept last.
+   */
+  private natureOptionsAtoZ(options: Array<{ nature: string; details: string[] }>) {
+    const isCatchAll = (s: string) => /^others?$/i.test(s.trim());
+    const az = (a: string, b: string) => {
+      if (isCatchAll(a) !== isCatchAll(b)) return isCatchAll(a) ? 1 : -1;
+      return a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
+    };
+    return options
+      .map(({ nature, details }) => ({ nature, details: [...details].sort(az) }))
+      .sort((a, b) => az(a.nature, b.nature));
   }
 
   /** Next sortOrder for a freshly added option — appends after everything existing. */

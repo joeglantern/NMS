@@ -5,6 +5,7 @@ import api from '../../api/client';
 import { Vehicle } from '../../types/api';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { fmtDateTime, toNairobiInput, nairobiInputToISO } from '../../lib/datetime';
+import { sortAZ } from '../../lib/sortOptions';
 
 interface StandbyRow {
   id: string;
@@ -198,7 +199,7 @@ export default function StandbyPage() {
                 <label className={labelCls} style={{ color: 'var(--muted)' }}>Vehicle *</label>
                 <select className={inputCls + ' cursor-pointer'} style={inputStyle} value={form.vehicleId} onChange={e => setForm(f => ({ ...f, vehicleId: e.target.value }))}>
                   <option value="">Select vehicle…</option>
-                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.registrationNumber}</option>)}
+                  {sortAZ(vehicles, v => v.registrationNumber).map(v => <option key={v.id} value={v.id}>{v.registrationNumber}</option>)}
                 </select>
               </div>
               <div>

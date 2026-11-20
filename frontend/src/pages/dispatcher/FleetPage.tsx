@@ -146,9 +146,9 @@ export default function FleetPage() {
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
               >
                 <option value="ALL">All Status</option>
-                <option value="ready">Ready</option>
-                <option value="no-driver">No Driver</option>
                 <option value="engaged">Engaged</option>
+                <option value="no-driver">No Driver</option>
+                <option value="ready">Ready</option>
                 <option value="unavailable">Unavailable</option>
               </select>
               <button className="icon-btn" onClick={exportCSV} title="Download CSV">

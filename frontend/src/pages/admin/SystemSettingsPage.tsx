@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
 import { useNotificationStore } from '../../stores/notificationStore';
 import ExportAllCasesDialog from '../../components/shared/ExportAllCasesDialog';
+import { sortAZ } from '../../lib/sortOptions';
 
 interface SystemHealth {
   db: 'online' | 'offline';
@@ -42,7 +43,7 @@ function NatureOptionsManager() {
     },
   });
 
-  const uniqueNatures = [...new Set(options.map(o => o.nature))];
+  const uniqueNatures = sortAZ([...new Set(options.map(o => o.nature))]);
 
   const addMutation = useMutation({
     mutationFn: (body: { nature: string; detail?: string }) => api.post('/admin/nature-options', body),

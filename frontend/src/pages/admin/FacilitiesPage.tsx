@@ -10,7 +10,7 @@ import api from '../../api/client';
 import { Facility } from '../../types/api';
 import Map from '../../components/shared/Map';
 
-const FACILITY_TYPES = ['Hospital', 'Health Centre', 'Clinic', 'Dispensary', 'Nursing Home', 'Maternity'];
+const FACILITY_TYPES = ['Clinic', 'Dispensary', 'Health Centre', 'Hospital', 'Maternity', 'Nursing Home'];
 const KEPH_LEVELS = [1, 2, 3, 4, 5, 6];
 const NAIROBI_SUB_COUNTIES = [
   'Dagoretti North', 'Dagoretti South', 'Embakasi Central', 'Embakasi East',

@@ -24,9 +24,10 @@ const SUB_COUNTIES = [
 
 const ALERT_MODES = ['Phone', 'Radio', 'Walk-in', 'Other'];
 
+// Dropdown lists are kept A to Z, with "Other" last (asked for by the EOC).
 const ORIGIN_OPTIONS = [
-  'Community', 'Health Facility', 'National Dispatch (SHA)', 'Police', 'Fire Department',
-  'Other EMS', 'Self-referral', 'Other',
+  'Community', 'Fire Department', 'Health Facility', 'National Dispatch (SHA)', 'Other EMS',
+  'Police', 'Self-referral', 'Other',
 ];
 
 // ── Style tokens ─────────────────────────────────────────────────────────────
@@ -1059,8 +1060,8 @@ export default function NewIncidentWizard() {
                     <Label>Sex</Label>
                     <select className={selectCls} value={form.patientGender} onChange={e => set({ patientGender: e.target.value })}>
                       <option value="">Select...</option>
-                      <option>Male</option>
                       <option>Female</option>
+                      <option>Male</option>
                       <option>Other</option>
                     </select>
                   </Field>
@@ -1389,11 +1390,11 @@ export default function NewIncidentWizard() {
                         <Label>Mode of Delivery</Label>
                         <select className={selectCls} value={mv.modeOfDelivery} onChange={e => setMat({ modeOfDelivery: e.target.value })}>
                           <option value="">Select...</option>
-                          <option>SVD</option>
-                          <option>Caesarean Section</option>
                           <option>Assisted Vaginal (Forceps)</option>
                           <option>Assisted Vaginal (Vacuum)</option>
                           <option>Breech</option>
+                          <option>Caesarean Section</option>
+                          <option>SVD</option>
                           <option>Other</option>
                         </select>
                       </Field>
@@ -1401,9 +1402,9 @@ export default function NewIncidentWizard() {
                         <Label>Gender</Label>
                         <select className={selectCls} value={mv.newbornGender} onChange={e => setMat({ newbornGender: e.target.value })}>
                           <option value="">Select...</option>
-                          <option>Male</option>
                           <option>Female</option>
                           <option>Indeterminate</option>
+                          <option>Male</option>
                         </select>
                       </Field>
                       <Field>

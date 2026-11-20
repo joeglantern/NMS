@@ -162,15 +162,15 @@ export default function CallLogPage() {
           <select className="eoc-select" style={{ height: 36, width: 'auto', padding: '0 10px' }} value={direction} onChange={(e) => setDirection(e.target.value)}>
             <option value="">All Directions</option>
             <option value="INBOUND">Inbound</option>
-            <option value="OUTBOUND">Outbound</option>
             <option value="INTERNAL">Internal</option>
+            <option value="OUTBOUND">Outbound</option>
           </select>
           <select className="eoc-select" style={{ height: 36, width: 'auto', padding: '0 10px' }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="ANSWERED">Answered</option>
-            <option value="NO_ANSWER">No Answer</option>
             <option value="BUSY">Busy</option>
             <option value="FAILED">Failed</option>
+            <option value="NO_ANSWER">No Answer</option>
           </select>
           <select className="eoc-select" style={{ height: 36, width: 'auto', padding: '0 10px' }} value={daysBack} onChange={(e) => setDaysBack(e.target.value)}>
             <option value="1">Today</option>
