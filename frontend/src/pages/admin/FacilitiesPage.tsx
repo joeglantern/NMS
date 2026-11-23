@@ -8,9 +8,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '../../stores/notificationStore';
 import api from '../../api/client';
 import { Facility } from '../../types/api';
+import { useDropdownList } from '../../lib/dropdownLists';
 import Map from '../../components/shared/Map';
 
-const FACILITY_TYPES = ['Clinic', 'Dispensary', 'Health Centre', 'Hospital', 'Maternity', 'Nursing Home'];
 const KEPH_LEVELS = [1, 2, 3, 4, 5, 6];
 const NAIROBI_SUB_COUNTIES = [
   'Dagoretti North', 'Dagoretti South', 'Embakasi Central', 'Embakasi East',
@@ -48,6 +48,7 @@ export default function FacilitiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Facility | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const facilityTypes = useDropdownList('facilityType', form.type);
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [locationQuery, setLocationQuery] = useState('');
@@ -425,7 +426,7 @@ export default function FacilitiesPage() {
                     value={form.type}
                     onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
                   >
-                    {FACILITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {facilityTypes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -580,6 +581,7 @@ function EditFacilityForm({ facility, onSave, onCancel, isPending }: {
 }) {
   const [name, setName] = useState(facility.name);
   const [type, setType] = useState(facility.type);
+  const facilityTypes = useDropdownList('facilityType', type);
   const [kephLevel, setKephLevel] = useState(facility.kephLevel);
 
   const inputStyle = { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' };
@@ -599,7 +601,7 @@ function EditFacilityForm({ facility, onSave, onCancel, isPending }: {
         <div>
           <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Type</label>
           <select className="w-full border rounded-xl px-4 py-3 text-sm font-semibold outline-none transition-all cursor-pointer" style={inputStyle} value={type} onChange={e => setType(e.target.value)}>
-            {FACILITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            {facilityTypes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>

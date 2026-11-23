@@ -23,6 +23,7 @@ import { smsRoutes } from './modules/sms/sms.routes.js';
 import { presenceRoutes } from './modules/presence/presence.routes.js';
 import { publicRoutes } from './modules/public/public.routes.js';
 import { fuelRoutes } from './modules/fuel/fuel.routes.js';
+import { optionsRoutes } from './modules/options/options.routes.js';
 import { TrackingService } from './modules/tracking/tracking.service.js';
 
 /**
@@ -102,6 +103,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.register(presenceRoutes, { prefix: '/presence' });
   app.register(publicRoutes, { prefix: '/public' });
   app.register(fuelRoutes, { prefix: '/fuel' });
+  app.register(optionsRoutes, { prefix: '/options' });
 
   // ── GPS Tracking (Uffizio/Kimii) ──────────────────────────────────────────
   const trackingService = new TrackingService(app);

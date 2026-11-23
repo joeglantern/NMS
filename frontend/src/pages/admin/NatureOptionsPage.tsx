@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '../../stores/notificationStore';
 import api from '../../api/client';
 import { sortAZ } from '../../lib/sortOptions';
+import DropdownListsManager from '../../components/shared/DropdownListsManager';
 
 interface NatureOption {
   id: string;
@@ -277,6 +278,8 @@ export default function NatureOptionsPage() {
           })
         )}
       </div>
+
+      <DropdownListsManager />
 
       {/* Modal */}
       {showModal && (

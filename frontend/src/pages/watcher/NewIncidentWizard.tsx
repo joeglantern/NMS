@@ -12,6 +12,7 @@ import CreatableCombobox from '../../components/shared/CreatableCombobox';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePlacesAutocomplete } from '../../hooks/usePlacesAutocomplete';
 import { toNairobiInput, nairobiInputToISO } from '../../lib/datetime';
+import { useDropdownList } from '../../lib/dropdownLists';
 import type { Facility } from '../../types/api';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -22,13 +23,6 @@ const SUB_COUNTIES = [
   'Kibra',"Lang'ata",'Makadara','Mathare','Roysambu','Ruaraka','Starehe','Westlands',
 ];
 
-const ALERT_MODES = ['Phone', 'Radio', 'Walk-in', 'Other'];
-
-// Dropdown lists are kept A to Z, with "Other" last (asked for by the EOC).
-const ORIGIN_OPTIONS = [
-  'Community', 'Fire Department', 'Health Facility', 'National Dispatch (SHA)', 'Other EMS',
-  'Police', 'Self-referral', 'Other',
-];
 
 // ── Style tokens ─────────────────────────────────────────────────────────────
 
@@ -344,6 +338,13 @@ export default function NewIncidentWizard() {
   const uniqueNatures = natureOptions.map(o => o.nature);
   const detailsForNature = natureOptions.find(o => o.nature === form.alertNature)?.details ?? [];
   const isMaternity = form.alertNature?.toLowerCase().includes('maternity');
+
+  // Built-in options plus the ones an admin added, A to Z with "Other" last.
+  const alertModes = useDropdownList('alertMode', form.alertMode);
+  const originOptions = useDropdownList('originOfAlert', form.originOfAlert);
+  const sexOptions = useDropdownList('patientSex', form.patientGender);
+  const deliveryModes = useDropdownList('modeOfDelivery', mv.modeOfDelivery);
+  const newbornSexOptions = useDropdownList('newbornSex', mv.newbornGender);
 
   // ── Referral facilities — same source as the dispatcher's dropdown ─────────
   const { data: facilities = [] } = useQuery<Facility[]>({
@@ -769,7 +770,7 @@ export default function NewIncidentWizard() {
                 <Field>
                   <Label required>Mode of Alert</Label>
                   <select className={selectCls} value={form.alertMode} onChange={e => set({ alertMode: e.target.value })}>
-                    {ALERT_MODES.map(m => <option key={m}>{m}</option>)}
+                    {alertModes.map(m => <option key={m}>{m}</option>)}
                   </select>
                 </Field>
 
@@ -777,7 +778,7 @@ export default function NewIncidentWizard() {
                   <Label>Origin of Alert</Label>
                   <select className={selectCls} value={form.originOfAlert} onChange={e => set({ originOfAlert: e.target.value })}>
                     <option value="">Select origin...</option>
-                    {ORIGIN_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                    {originOptions.map(o => <option key={o}>{o}</option>)}
                   </select>
                 </Field>
 
@@ -1060,9 +1061,7 @@ export default function NewIncidentWizard() {
                     <Label>Sex</Label>
                     <select className={selectCls} value={form.patientGender} onChange={e => set({ patientGender: e.target.value })}>
                       <option value="">Select...</option>
-                      <option>Female</option>
-                      <option>Male</option>
-                      <option>Other</option>
+                      {sexOptions.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </Field>
                 </div>
@@ -1390,21 +1389,14 @@ export default function NewIncidentWizard() {
                         <Label>Mode of Delivery</Label>
                         <select className={selectCls} value={mv.modeOfDelivery} onChange={e => setMat({ modeOfDelivery: e.target.value })}>
                           <option value="">Select...</option>
-                          <option>Assisted Vaginal (Forceps)</option>
-                          <option>Assisted Vaginal (Vacuum)</option>
-                          <option>Breech</option>
-                          <option>Caesarean Section</option>
-                          <option>SVD</option>
-                          <option>Other</option>
+                          {deliveryModes.map(o => <option key={o}>{o}</option>)}
                         </select>
                       </Field>
                       <Field>
                         <Label>Gender</Label>
                         <select className={selectCls} value={mv.newbornGender} onChange={e => setMat({ newbornGender: e.target.value })}>
                           <option value="">Select...</option>
-                          <option>Female</option>
-                          <option>Indeterminate</option>
-                          <option>Male</option>
+                          {newbornSexOptions.map(o => <option key={o}>{o}</option>)}
                         </select>
                       </Field>
                       <Field>

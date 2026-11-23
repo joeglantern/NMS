@@ -528,6 +528,22 @@ model IncidentNatureOption {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DropdownOption — options an admin added to a form dropdown (origin of alert,
+// alert mode, facility type...). Built-in options live in the frontend.
+// The table is also created at boot by modules/options if it is missing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DropdownOption {
+  id        String   @id @default(uuid())
+  field     String   // which list: originOfAlert, alertMode, facilityType...
+  label     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([field, label])
+  @@map("dropdown_options")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GbvReport — Gender-Based Violence supplementary data, one-to-one with Incident
 // ─────────────────────────────────────────────────────────────────────────────
 
